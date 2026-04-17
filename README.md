@@ -24,7 +24,7 @@ The sections below describe the required data format and the workflow.
 Example of a valid dataset layout:
 
 ```
-data/
+dataset/
 ├── gt/
 │   ├── 0000001.png        # GT images, shape: (H, W, 3)
 │   └── ...
@@ -39,20 +39,22 @@ data/
 │   └── sr_method_N/
 │       ├── 0000001.npy.gz
 │       └── ...
-├── sr_method_1/
-│   ├── 0000001.png        # SR images, shape: (H, W, 3)
-│   └── ...
-├── ...
-├── sr_method_N/
-│   ├── 0000001.png
-│   └── ...
-├── ref_method_1/
-│   ├── 0000001.png        # Reference (quasi-GT) images, shape: (H, W, 3)
-│   └── ...
-├── ...
-└── ref_method_M/
-    ├── 0000001.png
-    └── ...
+├── sr/
+│   ├── sr_method_1/
+│   │   ├── 0000001.png    # SR images, shape: (H, W, 3)
+│   │   └── ...
+│   ├── ...
+│   └── sr_method_N/
+│       ├── 0000001.png
+│       └── ...
+└── ref/
+    ├── ref_method_1/
+    │   ├── 0000001.png    # Reference (quasi-GT) images, shape: (H, W, 3)
+    │   └── ...
+    ├── ...
+    └── ref_method_M/
+        ├── 0000001.png
+        └── ...
 ```
 
 SR images must have normalized quality scores in the range `[0, 1]`:
@@ -66,6 +68,8 @@ test_case,method,score_norm
 0000002,sr_method_1,0.59
 ...
 ```
+
+We provide a free sample dataset that follows these guidelines. Please look at `dataset/readme.md` for details on downloading and using it. Sample features in this repository are precomputed on this data.
 
 ---
 

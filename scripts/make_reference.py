@@ -4,7 +4,7 @@ Output naming:
     <sr_stem>@<sr_method>@<ref_suffix><output_ext>
 
 Typical usage:
-    python make_reference.py \
+    python scripts/make_reference.py \
       --lr-dir /data/LR \
       --sr-dirs PASD=/data/SR/PASD SUPIR=/data/SR/SUPIR RealESRGAN=/data/SR/RealESRGAN \
       --out-root /data/references \
@@ -117,8 +117,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--scale", type=int, default=4, help="Scale argument passed to SR model inference")
     parser.add_argument("--python-exec", default="python3", help="Python executable for inference commands")
 
-    parser.add_argument("--rlfn-script", default=None, help="Path to RLFN inference script")
-    parser.add_argument("--rlfn-ckpt", default=None, help="Path to RLFN checkpoint")
+    parser.add_argument("--rlfn-script", default='./realtime_sr/RLFN/inference-RLFN.py', help="Path to RLFN inference script")
+    parser.add_argument("--rlfn-ckpt", default='./realtime_sr/RLFN/rlfn-tuned-4x.pth', help="Path to RLFN checkpoint")
     parser.add_argument(
         "--rlfn-cmd-template",
         default=DEFAULT_RLFN_TEMPLATE,
@@ -128,8 +128,8 @@ def parse_args() -> argparse.Namespace:
         ),
     )
 
-    parser.add_argument("--span-script", default=None, help="Path to SPAN inference script")
-    parser.add_argument("--span-ckpt", default=None, help="Path to SPAN checkpoint")
+    parser.add_argument("--span-script", default='./realtime_sr/SPAN/inference-SPAN.py', help="Path to SPAN inference script")
+    parser.add_argument("--span-ckpt", default='./realtime_sr/SPAN/span-tuned-4x.pth', help="Path to SPAN checkpoint")
     parser.add_argument(
         "--span-cmd-template",
         default=DEFAULT_SPAN_TEMPLATE,

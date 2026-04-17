@@ -184,3 +184,4 @@ README_bad.md
 old_regressors.ipynb
 legacy_regressors.ipynb
 legacy_compute_statistics.py
+filter.py
