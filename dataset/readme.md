@@ -9,6 +9,6 @@ This is a sample dataset based on [Q-Instruct](https://q-future.github.io/Q-Inst
 Dataset is available to download for free on [GDrive](https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing) or [GML server](https://titan.gml-team.ru:5003/sharing/hm3FpzpDp). Below are the commands to download and unpack all the images.
 
 ```bash
-gdown 'https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing' --fuzzy
+gdown 'https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing'
 unzip grounding_dataset.zip -d dataset/
 ```

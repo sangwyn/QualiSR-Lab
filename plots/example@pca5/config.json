@@ -8,9 +8,8 @@
   "save_mean_correlations": true,
   "save_best_correlations": false,
   "paths": {
-    "raw_scores": "scores/mos_scores_kmeans_normalized.csv",
+    "raw_scores": "scores/labels.csv",
     "scores": "scores/fn_scores.csv",
-    "stats": "features/stats@grounding.csv",
     "features_root": "features",
     "plots_root": "plots"
   },
@@ -70,7 +69,8 @@
       "fr": "{features_root}/fr@grounding.csv",
       "siglip": "{features_root}/siglip@grounding.csv",
       "vgg": "{features_root}/pca/vgg@grounding_pca{pca_n}.csv",
-      "resnet": "{features_root}/pca/resnet@grounding_pca{pca_n}.csv"
+      "resnet": "{features_root}/pca/resnet@grounding_pca{pca_n}.csv",
+      "stats": "{features_root}/stats@grounding.csv"
     }
   },
   "models": {

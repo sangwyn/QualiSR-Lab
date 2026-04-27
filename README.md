@@ -131,8 +131,9 @@ Apply Principal Component Analysis (PCA) to high-dimensional feature blocks such
 ```bash
 python scripts/apply_pca.py \
   --input features/image_features.csv \
+  --blocks vgg=vgg_ resnet=resnet_ \
   --n-components 5 10 25 50 75 \
-  --test-size 0.5 \
+  --test-size 0.2 \
   --split-seed 42 \
   --output-dir features/pca
 ```
