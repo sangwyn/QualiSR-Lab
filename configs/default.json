@@ -1,0 +1,72 @@
+{
+    "seed": 42,
+    "experiment_name": "baseline",
+    "test_size": 0.2,
+    "scale_features": true,
+    "permutation_repeats": 10,
+    "save_dataset_snapshot": true,
+    "save_mean_correlations": true,
+    "save_best_correlations": false,
+
+    "paths": {
+        "raw_scores": "scores/labels.csv",
+        "scores": "scores/fn_scores.csv",
+        "features_root": "features",
+        "plots_root": "plots"
+    },
+
+    "score_preparation": {
+        "enabled": true,
+        "method_column": "method",
+        "case_column": "test_case",
+        "score_column": "score_norm",
+        "method_map": {
+            "pasd": "PASD",
+            "supir": "SUPIR",
+            "realesrgan": "RealESRGAN"
+        },
+        "name_suffix": ".npy.gz"
+    },
+
+    "dataset": {
+        "name_column": "name",
+        "score_column": "scores",
+        "sr_method_column": "sr_method",
+        "sr_filename_column": "sr_filename",
+        "filename_suffix": ".npy.gz",
+        "group_segment_index": 1,
+        "group_remove_suffix": ".npy.gz",
+        "metadata_drop": [
+            "sample_id", "sr_method", "sr_filename", "sr_path", "gt_path", "lr_path", "set_type"
+        ]
+    },
+
+    "features": {
+        "pca_n": 5,
+        "include": ["nr", "fr", "vgg", "resnet"],
+        "include_stats": true,
+        "stats_columns": ["max", "median", "std", "area00"],
+        "fr_refs": ["rlfn"],
+        "exclude_columns": ["qalign"],
+
+        "feature_files": {
+            "nr": "{features_root}/nr@grounding.csv",
+            "fr": "{features_root}/fr@grounding.csv",
+            "siglip": "{features_root}/siglip@grounding.csv",
+            "vgg": "{features_root}/pca/vgg@grounding_pca{pca_n}.csv",
+            "resnet": "{features_root}/pca/resnet@grounding_pca{pca_n}.csv",
+            "stats": "{features_root}/stats@grounding.csv"
+        }
+    },
+
+    "models": {
+        "randomforest": {"enabled": true, "params": {}},
+        "xgb": {"enabled": true, "params": {}},
+        "catboost": {"enabled": true, "params": {}}
+    },
+
+    "plot": {
+        "importance_figsize": [6, 12],
+        "correlation_figsize": [10, 5]
+    }
+}

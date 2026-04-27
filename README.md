@@ -79,15 +79,19 @@ We provide a free sample [dataset](https://drive.google.com/file/d/1NeGiwWQECTZM
 
 ## 🚀 Workflow
 
+```bash
+pip install -r requirements.txt
+```
+
 ### Step 0 (optional): Prepare reference images
 
 Produce [RLFN](https://github.com/bytedance/RLFN) / [SPAN](https://github.com/zononhzy/SPAN) / bicubic images for LR + SR pairs (used to compute FR metrics).
 
 ```bash
 python scripts/make_reference.py \
-  --lr-dir data/lr \
-  --sr-dirs PASD=data/PASD SUPIR=data/SUPIR RealESRGAN=data/RealESRGAN \
-  --out-root data/ \
+  --lr-dir dataset/lr \
+  --sr-dirs PASD=dataset/sr/PASD SUPIR=dataset/sr/SUPIR RealESRGAN=dataset/sr/RealESRGAN \
+  --out-root dataset/ref/ \
   --refs bicubic rlfn span \
   --scale 4 \
   --rlfn-script realtime_sr/RLFN/inference-RLFN.py \
@@ -109,10 +113,10 @@ Reference image filenames are expected in the format:
 
 ```bash
 python scripts/get_image_features.py \
-  --sr-dirs PASD=data/PASD SUPIR=data/SUPIR RealESRGAN=data/RealESRGAN \
-  --gt-dir data/gt \
-  --lr-dir data/lr \
-  --ref-dirs bicubic=data/bicubic rlfn=data/RLFN span=data/SPAN \
+  --sr-dirs PASD=dataset/sr/PASD SUPIR=dataset/sr/SUPIR RealESRGAN=dataset/sr/RealESRGAN \
+  --gt-dir dataset/hr \
+  --lr-dir dataset/lr \
+  --ref-dirs bicubic=dataset/ref/bicubic rlfn=dataset/ref/rlfn span=dataset/ref/span \
   --features fr,nr,vgg,resnet,siglip \
   --output features/image_features.csv \
   --device cuda
@@ -128,7 +132,7 @@ Apply Principal Component Analysis (PCA) to high-dimensional feature blocks such
 python scripts/apply_pca.py \
   --input features/image_features.csv \
   --n-components 5 10 25 50 75 \
-  --test-size 0.2 \
+  --test-size 0.5 \
   --split-seed 42 \
   --output-dir features/pca
 ```
@@ -142,8 +146,8 @@ Input directories can be passed as `PREFIX=DIR` to ensure stable sample naming.
 
 ```bash
 python scripts/compute_statistics.py \
-  --heatmap-dirs PASD=data/heatmaps/PASD SUPIR=data/heatmaps/SUPIR RealESRGAN=data/heatmaps/RealESRGAN \
-  --output stats/grounding_stats@coarse.csv \
+  --heatmap-dirs PASD=dataset/heatmaps/PASD SUPIR=dataset/heatmaps/SUPIR RealESRGAN=dataset/heatmaps/RealESRGAN \
+  --output features/stats@grounding.csv \
   --percentiles 5 95 \
   --area-thresholds 0 0.5 0.75
 ```
@@ -162,9 +166,9 @@ The first notebook cell describes the workflow for running experiments individua
 
 Example outputs:
 
-<p float="left">
-  <img src="plots/example@pca5/all_models_importances.png" alt="Feature importances" width="600"/>
-  <img src="plots/example@pca5/correlations.png" alt="Correlations" width="550"/>
+<p align="center" float="left">
+  <img src="plots/example@pca5/all_models_importances.png" alt="Feature importances" width="800"/>
+  <img src="plots/example@pca5/correlations.png" alt="Correlations" width="800"/>
 </p>
 
 ---

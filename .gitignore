@@ -185,3 +185,13 @@ old_regressors.ipynb
 legacy_regressors.ipynb
 legacy_compute_statistics.py
 filter.py
+grounding_dataset.zip
+
+dataset/heatmaps
+dataset/hr
+dataset/lr
+dataset/ref
+dataset/sr
+dataset/labels.csv
+
+features/image_features.csv
