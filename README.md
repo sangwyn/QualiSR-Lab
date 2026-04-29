@@ -21,6 +21,8 @@ The proposed pipeline is:
 
 The sections below describe the required data format and the workflow.
 
+![Pipeline overview](pipeline.png)
+
 ---
 
 ## ⚙️ Dataset Structure
@@ -167,10 +169,8 @@ The first notebook cell describes the workflow for running experiments individua
 
 Example outputs:
 
-<p align="center" float="left">
-  <img src="plots/example@pca5/all_models_importances.png" alt="Feature importances" width="800"/>
-  <img src="plots/example@pca5/correlations.png" alt="Correlations" width="800"/>
-</p>
+![Feature importances](plots/example@pca5/all_models_importances.png)
+![Correlations](plots/example@pca5/correlations.png)
 
 ---
 
@@ -251,17 +251,3 @@ The project extracts the following summary statistics from artifact masks:
 - std
 - percentiles
 - thresholded artifact area
-
-
-<!-- ---
-
-## Summary
-
-This repository provides a practical pipeline for building and analyzing reduced-reference IQA metrics for super-resolution. It combines:
-
-- NR metrics,
-- FR metrics,
-- pretrained encoder embeddings,
-- artifact-mask statistics,
-
-and uses regression analysis plus correlation metrics to determine which features are most informative for SR quality prediction. -->
