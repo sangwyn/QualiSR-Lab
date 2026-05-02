@@ -2,7 +2,11 @@
 
 [Oleg Ryabinin](https://orcid.org/0009-0008-3153-4183)<sup>1,2</sup> | [Evgeney Bogatyrev](https://orcid.org/0000-0002-6173-3561)<sup>1,2</sup> | [Dmitriy Vatolin](https://orcid.org/0000-0002-8893-9340)<sup>1,2,3</sup>
 
-<sup>1</sup>Moscow State University, <sup>2</sup>Graphics & Media Lab, <sup>3</sup>Institute of Artificial Intelligence
+<sup>1</sup>Lomonosov Moscow State University, 119991, Moscow, Russia
+
+<sup>2</sup>AI Center, Lomonosov Moscow State University
+
+<sup>3</sup>MSU Institute for Artificial Intelligence, Lomonosov Moscow State University
 
 ## 🔎 Overview
 
