@@ -1,6 +1,6 @@
 # QualiSR-Lab: Reduced-Reference IQA for SR
 
-[Oleg Ryabinin](https://orcid.org/0009-0008-3153-4183)<sup>1,2</sup> | [Evgeney Bogatyrev](https://orcid.org/0000-0002-6173-3561)<sup>1,2</sup> | [Dmitriy Vatolin](https://orcid.org/0000-0002-8893-9340)<sup>1,2,3</sup>
+[Oleg Ryabinin](https://orcid.org/0009-0008-3153-4183)<sup>1,2</sup> | [Evgeney Bogatyrev](https://orcid.org/0000-0002-6173-3561)<sup>1,2,3</sup> | [Dmitriy Vatolin](https://orcid.org/0000-0002-8893-9340)<sup>1,2,3</sup>
 
 <sup>1</sup>Lomonosov Moscow State University, 119991, Moscow, Russia
 
@@ -26,60 +26,6 @@ The proposed pipeline is:
 The sections below describe the required data format and the workflow.
 
 ![Pipeline overview](pipeline.png)
-
----
-
-## ⚙️ Dataset Structure
-
-Example of a valid dataset layout:
-
-```
-dataset/
-├── gt/
-│   ├── 0000001.png        # GT images, shape: (H, W, 3)
-│   └── ...
-├── lr/
-│   ├── 0000001.png        # LR images, shape: (H/scale, W/scale, 3)
-│   └── ...
-├── heatmaps/
-│   ├── sr_method_1/
-│   │   ├── 0000001.npy.gz # Artifact masks, shape: (H, W, 1)
-│   │   └── ...
-│   ├── ...
-│   └── sr_method_N/
-│       ├── 0000001.npy.gz
-│       └── ...
-├── sr/
-│   ├── sr_method_1/
-│   │   ├── 0000001.png    # SR images, shape: (H, W, 3)
-│   │   └── ...
-│   ├── ...
-│   └── sr_method_N/
-│       ├── 0000001.png
-│       └── ...
-└── ref/
-    ├── ref_method_1/
-    │   ├── 0000001.png    # Reference (quasi-GT) images, shape: (H, W, 3)
-    │   └── ...
-    ├── ...
-    └── ref_method_M/
-        ├── 0000001.png
-        └── ...
-```
-
-SR images must have normalized quality scores in the range `[0, 1]`:
-
-```csv
-labels.csv
-
-test_case,method,score_norm
-0000001,sr_method_1,0.72
-0000001,sr_method_2,0.25
-0000002,sr_method_1,0.59
-...
-```
-
-We provide a free sample [dataset](https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing) that follows the guidelines above. Please address `dataset/readme.md` for details on downloading and using it. Sample features in this repository are precomputed on this data.
 
 ---
 
@@ -244,7 +190,7 @@ Artifacts are common in modern deep-learning-based SR models. The working hypoth
 > Artifact-related information provides useful signals for assessing generated image quality.
 
 An artifact mask is a single-channel tensor with values in the range `[0, 1]`.  
-Masks for SR images must be computed beforehand.
+Masks for SR images must be computed beforehand with a suitable method such as [Prominence-Aware Artifact Detection metric](https://arxiv.org/abs/2510.16752).
 
 The project extracts the following summary statistics from artifact masks:
 

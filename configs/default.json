@@ -44,18 +44,18 @@
     "features": {
         "pca_n": 5,
         "include": ["nr", "fr", "vgg", "resnet"],
-        "include_stats": true,
+        "include_stats": false,
         "stats_columns": ["max", "median", "std", "area00"],
         "fr_refs": ["rlfn"],
         "exclude_columns": ["qalign"],
 
         "feature_files": {
-            "nr": "{features_root}/nr@grounding.csv",
-            "fr": "{features_root}/fr@grounding.csv",
-            "siglip": "{features_root}/siglip@grounding.csv",
-            "vgg": "{features_root}/pca/vgg@grounding_pca{pca_n}.csv",
-            "resnet": "{features_root}/pca/resnet@grounding_pca{pca_n}.csv",
-            "stats": "{features_root}/stats@grounding.csv"
+            "nr": "{features_root}/nr.csv",
+            "fr": "{features_root}/fr.csv",
+            "siglip": "{features_root}/siglip.csv",
+            "vgg": "{features_root}/pca/vgg_pca{pca_n}.csv",
+            "resnet": "{features_root}/pca/resnet_pca{pca_n}.csv",
+            "stats": "{features_root}/stats.csv"
         }
     },
 
