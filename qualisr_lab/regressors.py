@@ -141,6 +141,15 @@ def resolve_feature_path(feat_name: str, cfg: dict[str, Any]) -> Path:
     )
 
 
+def resolve_configured_path(path_template: str, cfg: dict[str, Any]) -> Path:
+    return Path(
+        path_template.format(
+            features_root=cfg["paths"]["features_root"],
+            pca_n=cfg["features"]["pca_n"],
+        )
+    )
+
+
 def keep_requested_fr_columns(df: pd.DataFrame, refs: list[str]) -> pd.DataFrame:
     refs_lower = [r.lower() for r in refs]
     keep_cols = ["name"]
@@ -204,6 +213,128 @@ def build_dataset(cfg: dict[str, Any]) -> pd.DataFrame:
         dataset = dataset.drop(columns=existing_excludes)
 
     return dataset.sort_values("name").reset_index(drop=True)
+
+
+def metric_comparison_column(item: dict[str, Any]) -> str:
+    if "column" in item:
+        return str(item["column"])
+
+    metric = item.get("metric")
+    if not metric:
+        raise ValueError(f"Correlation metric item must define 'column' or 'metric': {item}")
+
+    reference = item.get("reference")
+    if reference:
+        return f"{metric}_{reference}"
+    return str(metric)
+
+
+def metric_comparison_label(item: dict[str, Any], column: str) -> str:
+    if "label" in item:
+        return str(item["label"])
+
+    feature = str(item.get("feature", "")).upper()
+    reference = item.get("reference")
+    metric = str(item.get("metric", column)).upper()
+    if reference:
+        metric = f"{metric}+{str(reference).upper()}"
+    if feature:
+        return f"{metric} ({feature})"
+    return metric
+
+
+def load_metric_comparison_values(
+    item: dict[str, Any],
+    cfg: dict[str, Any],
+    target_names: pd.Series,
+) -> tuple[str, str, pd.Series]:
+    if "path" in item:
+        path = resolve_configured_path(item["path"], cfg)
+    else:
+        feature_name = item.get("feature")
+        if feature_name is None:
+            raise ValueError(f"Correlation metric item must define 'feature' or 'path': {item}")
+        path = resolve_feature_path(str(feature_name), cfg)
+
+    if not path.exists():
+        raise FileNotFoundError(f"Correlation metric feature file not found: {path}")
+
+    column = metric_comparison_column(item)
+    values = pd.read_csv(path)
+    values["name"] = build_sample_name(values, cfg)
+    if column not in values.columns:
+        raise ValueError(
+            f"Correlation metric column '{column}' not found in {path}. "
+            f"Available columns: {values.columns.tolist()}"
+        )
+
+    subset = values[["name", column]].copy()
+    if subset["name"].duplicated().any():
+        duplicates = sorted(subset.loc[subset["name"].duplicated(), "name"].unique().tolist())
+        raise ValueError(f"Correlation metric file {path} has duplicate sample names: {duplicates[:10]}")
+
+    aligned = target_names.to_frame(name="name").merge(subset, on="name", how="left")[column]
+    label = metric_comparison_label(item, column)
+    return label, column, aligned
+
+
+def normalize_metric_values(values: pd.Series, higher_is_better: bool) -> pd.Series:
+    numeric = pd.to_numeric(values, errors="coerce")
+    finite = numeric.replace([np.inf, -np.inf], np.nan).dropna()
+    if finite.empty:
+        return numeric
+
+    value_min = finite.min()
+    value_max = finite.max()
+    if np.isclose(value_min, value_max):
+        normalized = pd.Series(np.nan, index=numeric.index, dtype=float)
+    else:
+        normalized = (numeric - value_min) / (value_max - value_min)
+
+    if not higher_is_better:
+        normalized = 1 - normalized
+
+    return normalized
+
+
+def compute_metric_comparisons(
+    cfg: dict[str, Any],
+    dataset: pd.DataFrame,
+    y_test: pd.Series,
+) -> list[dict[str, Any]]:
+    comparison_cfg = cfg.get("correlation_metrics", {})
+    if not comparison_cfg.get("enabled", False):
+        return []
+
+    name_col = cfg["dataset"]["name_column"]
+    target_names = dataset.loc[y_test.index, name_col].reset_index(drop=True)
+    target_scores = y_test.reset_index(drop=True)
+
+    rows = []
+    for item in comparison_cfg.get("items", []):
+        label, column, values = load_metric_comparison_values(item, cfg, target_names)
+        higher_is_better = item.get("higher_is_better", True)
+        normalized_values = normalize_metric_values(values, higher_is_better=higher_is_better)
+
+        valid = target_scores.notna() & normalized_values.notna()
+        if not valid.any():
+            raise ValueError(f"Correlation metric '{label}' has no values aligned with the test split")
+
+        plcc, srcc = safe_corr(target_scores[valid], normalized_values[valid])
+        rows.append(
+            {
+                "model": label,
+                "plcc": plcc,
+                "srcc": srcc,
+                "source": "metric",
+                "feature": item.get("feature"),
+                "column": column,
+                "higher_is_better": higher_is_better,
+                "normalized": True,
+            }
+        )
+
+    return rows
 
 
 def build_group_keys(names: pd.Series, cfg: dict[str, Any]) -> pd.Series:
@@ -388,7 +519,7 @@ def plot_all_importances(
     if len(images) == 1:
         axes = [axes]
 
-    for ax, (_, _), image in zip(axes, valid, images):
+    for ax, (_, _), image in zip(axes, valid, images, strict=False):
         ax.imshow(image)
         ax.axis("off")
 
@@ -405,7 +536,13 @@ def plot_all_importances(
     return out_path
 
 
-def plot_correlations(results_df: pd.DataFrame, out_dir: Path, cfg: dict[str, Any]) -> Path:
+def plot_correlations(
+    results_df: pd.DataFrame,
+    out_dir: Path,
+    cfg: dict[str, Any],
+    filename: str = "correlations.png",
+    title: str = "Regressor and Metric Correlation Scores",
+) -> Path:
     df = results_df.sort_values("srcc", ascending=False).reset_index(drop=True)
 
     bar_width = 0.18
@@ -415,14 +552,14 @@ def plot_correlations(results_df: pd.DataFrame, out_dir: Path, cfg: dict[str, An
     ax.bar(x - bar_width / 2, df["plcc"], width=bar_width, label="PLCC", color="#845ec2")
     ax.bar(x + bar_width / 2, df["srcc"], width=bar_width, label="SRCC", color="#00c9a7")
     ax.set_xticks(x)
-    ax.set_xticklabels(df["model"].tolist())
+    ax.set_xticklabels(df["model"].tolist(), rotation=30, ha="right")
     ax.set_ylim(0, 1)
     ax.set_ylabel("Correlation")
-    ax.set_title("Model Correlation Scores")
+    ax.set_title(title)
     ax.legend(loc="upper right")
     fig.tight_layout()
 
-    out_path = out_dir / "correlations.png"
+    out_path = out_dir / filename
     fig.savefig(out_path)
     plt.close(fig)
     return out_path
@@ -452,23 +589,53 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         all_plcc.append(plcc)
         all_srcc.append(srcc)
 
-        results.append({"model": model_name, "plcc": plcc, "srcc": srcc})
+        results.append({"model": model_name, "plcc": plcc, "srcc": srcc, "source": "regressor"})
         if make_plots:
             imp_path = plot_importance(model_name, model, X_test, y_test, out_dir, cfg)
             importance_paths[model_name] = str(imp_path) if imp_path else None
 
+    results.extend(compute_metric_comparisons(cfg, dataset, y_test))
+
     if cfg["save_mean_correlations"]:
-        results.append({"model": "mean", "plcc": float(np.mean(all_plcc)), "srcc": float(np.mean(all_srcc))})
+        results.append(
+            {
+                "model": "mean",
+                "plcc": float(np.mean(all_plcc)),
+                "srcc": float(np.mean(all_srcc)),
+                "source": "summary",
+            }
+        )
     if cfg["save_best_correlations"]:
-        results.append({"model": "best", "plcc": float(np.max(all_plcc)), "srcc": float(np.max(all_srcc))})
+        results.append(
+            {
+                "model": "best",
+                "plcc": float(np.max(all_plcc)),
+                "srcc": float(np.max(all_srcc)),
+                "source": "summary",
+            }
+        )
 
     results_df = pd.DataFrame(results).sort_values("srcc", ascending=False).reset_index(drop=True)
     results_df.to_csv(out_dir / "correlations.csv", index=False)
 
     combined_importance_path = None
+    correlations_path = None
+    correlations_without_metrics_path = None
     if make_plots:
         combined_importance_path = plot_all_importances(importance_paths, out_dir, cfg)
-        plot_correlations(results_df, out_dir, cfg)
+        correlations_path = plot_correlations(results_df, out_dir, cfg)
+        if "source" in results_df.columns:
+            without_metrics = results_df[results_df["source"] != "metric"].copy()
+        else:
+            without_metrics = results_df.copy()
+        if not without_metrics.empty:
+            correlations_without_metrics_path = plot_correlations(
+                without_metrics,
+                out_dir,
+                cfg,
+                filename="correlations_without_metrics.png",
+                title="Regressor Correlation Scores",
+            )
 
     with open(out_dir / "config.json", "w", encoding="utf-8") as handle:
         json.dump(cfg, handle, indent=2)
@@ -479,11 +646,15 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         "output_dir": out_dir,
         "importance_paths": importance_paths,
         "all_importances_path": str(combined_importance_path) if combined_importance_path else None,
+        "correlations_path": str(correlations_path) if correlations_path else None,
+        "correlations_without_metrics_path": (
+            str(correlations_without_metrics_path) if correlations_without_metrics_path else None
+        ),
     }
 
 
 def load_config(path: Path) -> dict[str, Any]:
-    with open(path, "r", encoding="utf-8") as handle:
+    with open(path, encoding="utf-8") as handle:
         return json.load(handle)
 
 

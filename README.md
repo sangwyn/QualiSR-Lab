@@ -25,7 +25,7 @@ The proposed pipeline is:
 
 The sections below describe the required data format and the workflow.
 
-![Pipeline overview](pipeline.png)
+![Pipeline overview](pipeline_legend.png)
 
 ---
 
@@ -163,7 +163,7 @@ qualisr-compute-stats \
 
 ### Step 4: Fit regressors and analyze results
 
-Train regressors and produce summary on feature importances and correlations.
+Train regressors and produce summary on feature importances and correlations. The correlation plot can also include direct NR/FR metric baselines from feature CSV files.
 
 ```bash
 qualisr-run-regressors --config configs/default.json

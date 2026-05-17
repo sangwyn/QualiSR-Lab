@@ -7,6 +7,30 @@
   "save_dataset_snapshot": true,
   "save_mean_correlations": true,
   "save_best_correlations": false,
+  "correlation_metrics": {
+    "enabled": true,
+    "items": [
+      {
+        "label": "MUSIQ (NR)",
+        "feature": "nr",
+        "metric": "musiq",
+        "higher_is_better": true
+      },
+      {
+        "label": "LPIPS-VGG+GT (FR)",
+        "feature": "fr",
+        "metric": "lpips-vgg",
+        "reference": "gt",
+        "higher_is_better": false
+      },
+      {
+        "label": "ARNIQA (NR)",
+        "feature": "nr",
+        "metric": "arniqa",
+        "higher_is_better": true
+      }
+    ]
+  },
   "paths": {
     "raw_scores": "scores/labels.csv",
     "scores": "scores/fn_scores.csv",
@@ -65,12 +89,12 @@
       "qalign"
     ],
     "feature_files": {
-      "nr": "{features_root}/nr@grounding.csv",
-      "fr": "{features_root}/fr@grounding.csv",
-      "siglip": "{features_root}/siglip@grounding.csv",
-      "vgg": "{features_root}/pca/vgg@grounding_pca{pca_n}.csv",
-      "resnet": "{features_root}/pca/resnet@grounding_pca{pca_n}.csv",
-      "stats": "{features_root}/stats@grounding.csv"
+      "nr": "{features_root}/nr.csv",
+      "fr": "{features_root}/fr.csv",
+      "siglip": "{features_root}/siglip.csv",
+      "vgg": "{features_root}/pca/vgg_pca{pca_n}.csv",
+      "resnet": "{features_root}/pca/resnet_pca{pca_n}.csv",
+      "stats": "{features_root}/stats.csv"
     }
   },
   "models": {
@@ -93,7 +117,7 @@
       12
     ],
     "correlation_figsize": [
-      10,
+      12,
       5
     ]
   }
