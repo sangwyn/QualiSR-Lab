@@ -92,6 +92,8 @@
 
     "plot": {
         "importance_figsize": [6, 12],
-        "correlation_figsize": [12, 5]
+        "correlation_figsize": [12, 5],
+        "dpi": 300,
+        "font_size": 16
     }
 }

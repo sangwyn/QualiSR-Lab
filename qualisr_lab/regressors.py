@@ -424,6 +424,19 @@ def _missing_optional(package_name: str, extra_name: str) -> ImportError:
     )
 
 
+def plot_rc_params(cfg: dict[str, Any]) -> dict[str, Any]:
+    font_size = cfg.get("plot", {}).get("font_size")
+    return {"font.size": font_size} if font_size is not None else {}
+
+
+def save_plot(fig: plt.Figure, out_path: Path, cfg: dict[str, Any]) -> None:
+    savefig_kwargs = {}
+    dpi = cfg.get("plot", {}).get("dpi")
+    if dpi is not None:
+        savefig_kwargs["dpi"] = dpi
+    fig.savefig(out_path, **savefig_kwargs)
+
+
 def init_models(cfg: dict[str, Any]) -> list[tuple[str, Any]]:
     models_cfg = cfg["models"]
     seed = cfg["seed"]
@@ -484,14 +497,15 @@ def plot_importance(
     palette = importance_palette()
     colors = [palette[feature_family(name)] for name in importances.index]
 
-    fig, ax = plt.subplots(figsize=tuple(cfg["plot"]["importance_figsize"]))
-    importances.plot.barh(yerr=perm.importances_std, ax=ax, color=colors)
-    ax.set_title(f"Feature Importances: {model_name}")
-    ax.set_xlabel("Importance")
-    fig.tight_layout()
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, ax = plt.subplots(figsize=tuple(cfg["plot"]["importance_figsize"]))
+        importances.plot.barh(yerr=perm.importances_std, ax=ax, color=colors)
+        ax.set_title(f"Feature Importances: {model_name}")
+        ax.set_xlabel("Importance")
+        fig.tight_layout()
 
     out_path = out_dir / f"importance_{model_name}.png"
-    fig.savefig(out_path)
+    save_plot(fig, out_path, cfg)
     plt.close(fig)
     return out_path
 
@@ -514,24 +528,25 @@ def plot_all_importances(
 
     images = [plt.imread(path) for _, path in valid]
     single_w, single_h = tuple(cfg["plot"]["importance_figsize"])
-    fig, axes = plt.subplots(1, len(images), figsize=(single_w * len(images), single_h))
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, axes = plt.subplots(1, len(images), figsize=(single_w * len(images), single_h))
 
-    if len(images) == 1:
-        axes = [axes]
+        if len(images) == 1:
+            axes = [axes]
 
-    for ax, (_, _), image in zip(axes, valid, images, strict=False):
-        ax.imshow(image)
-        ax.axis("off")
+        for ax, (_, _), image in zip(axes, valid, images, strict=False):
+            ax.imshow(image)
+            ax.axis("off")
 
-    palette = importance_palette()
-    labels = importance_legend_labels()
-    handles = [mpatches.Patch(color=palette[key], label=labels[key]) for key in labels]
+        palette = importance_palette()
+        labels = importance_legend_labels()
+        handles = [mpatches.Patch(color=palette[key], label=labels[key]) for key in labels]
 
-    fig.legend(handles=handles, loc="center right", bbox_to_anchor=(0.995, 0.5))
-    fig.tight_layout(rect=(0, 0, 0.9, 1))
+        fig.legend(handles=handles, loc="center right", bbox_to_anchor=(0.995, 0.5))
+        fig.tight_layout(rect=(0, 0, 0.9, 1))
 
     out_path = out_dir / "all_models_importances.png"
-    fig.savefig(out_path)
+    save_plot(fig, out_path, cfg)
     plt.close(fig)
     return out_path
 
@@ -548,19 +563,20 @@ def plot_correlations(
     bar_width = 0.18
     x = np.arange(len(df))
 
-    fig, ax = plt.subplots(figsize=tuple(cfg["plot"]["correlation_figsize"]))
-    ax.bar(x - bar_width / 2, df["plcc"], width=bar_width, label="PLCC", color="#845ec2")
-    ax.bar(x + bar_width / 2, df["srcc"], width=bar_width, label="SRCC", color="#00c9a7")
-    ax.set_xticks(x)
-    ax.set_xticklabels(df["model"].tolist(), rotation=30, ha="right")
-    ax.set_ylim(0, 1)
-    ax.set_ylabel("Correlation")
-    ax.set_title(title)
-    ax.legend(loc="upper right")
-    fig.tight_layout()
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, ax = plt.subplots(figsize=tuple(cfg["plot"]["correlation_figsize"]))
+        ax.bar(x - bar_width / 2, df["plcc"], width=bar_width, label="PLCC", color="#845ec2")
+        ax.bar(x + bar_width / 2, df["srcc"], width=bar_width, label="SRCC", color="#00c9a7")
+        ax.set_xticks(x)
+        ax.set_xticklabels(df["model"].tolist(), rotation=30, ha="right")
+        ax.set_ylim(0, 1)
+        ax.set_ylabel("Correlation")
+        ax.set_title(title)
+        ax.legend(loc="upper right")
+        fig.tight_layout()
 
     out_path = out_dir / filename
-    fig.savefig(out_path)
+    save_plot(fig, out_path, cfg)
     plt.close(fig)
     return out_path
 

@@ -119,6 +119,8 @@
     "correlation_figsize": [
       12,
       5
-    ]
+    ],
+    "dpi": 600,
+    "font_size": 16
   }
 }
