@@ -55,6 +55,10 @@ qualisr-run-regressors --config configs/default.json
 
 ```
 
+The image installs the package under `/app`. The optional bind mount above makes
+your local checkout available at `/workspace` without replacing the installed
+package inside the image.
+
 ---
 
 ## 🛠️ Installation Options
