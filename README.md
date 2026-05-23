@@ -85,8 +85,7 @@ pytest
 
 The legacy fully pinned environment is kept in `requirements.txt`.
 
-See [dataset/readme.md](dataset/readme.md) for dataset download notes and
-publication-readiness metadata that still needs archival documentation.
+See [dataset/readme.md](dataset/readme.md) for dataset download notes.
 
 ---
 

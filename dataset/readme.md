@@ -1,14 +1,22 @@
 # Dataset
 
+Source image pool: [SR-Ground](https://huggingface.co/datasets/Divotion/SR-Ground).
+
 ## 🔎 Overview
 
-This is a sample dataset based on open IQA datasets: [FLIVE](https://github.com/niu-haoran/FLIVE_Database), [KonIQ10k](https://database.mmsp-kn.de/koniq-10k-database.html), [AVA](https://github.com/imfing/ava_downloader), [Waterloo Exploration Database](https://ece.uwaterloo.ca/~k29ma/exploration/). We picked 40 ground-truth images based on K-Means clusterization (10 images for each of the 4 centroids). For each of these images, we provide both SR ([PASD](https://github.com/yangxy/PASD)/[SUPIR](https://github.com/Fanghua-Yu/SUPIR)/[RealESRGAN](https://github.com/xinntao/real-esrgan)) and reference ([RLFN](https://github.com/bytedance/RLFN)/[SPAN](https://github.com/zononhzy/SPAN)/bicubic) images and also artifact masks in `heatmaps/` subdirectory. Each SR image has a Mean Opinion Score assigned to it in `labels.csv`.
+This is a sample dataset based on open IQA datasets: [FLIVE](https://github.com/niu-haoran/FLIVE_Database), [KonIQ10k](https://database.mmsp-kn.de/koniq-10k-database.html), [AVA](https://github.com/imfing/ava_downloader). We picked 40 ground-truth images based on K-Means clusterization (10 images for each of the 4 centroids). For each of these images, we provide both SR ([PASD](https://github.com/yangxy/PASD)/[SUPIR](https://github.com/Fanghua-Yu/SUPIR)/[RealESRGAN](https://github.com/xinntao/real-esrgan)) and reference ([RLFN](https://github.com/bytedance/RLFN)/[SPAN](https://github.com/zononhzy/SPAN)/bicubic) images and also artifact masks in `heatmaps/` subdirectory. Each SR image has a Mean Opinion Score assigned to it in `labels.csv`.
 
 ---
 
 ## ⚙️ How to use
 
-Dataset is available to download for free on [GDrive](https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing) or [GML server](https://titan.gml-team.ru:5003/sharing/hm3FpzpDp). Below are the commands to download and unpack all the images.
+Dataset is available to download for free on [Hugging Face](https://huggingface.co/datasets/onryabinin/QualiSR-Set120) or [GDrive](https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing). Below are the commands to download and unpack all the images.
+
+```bash
+hf download onryabinin/QualiSR-Set120 --repo-type dataset --local-dir dataset
+```
+
+Alternatively:
 
 ```bash
 gdown 'https://drive.google.com/file/d/1NeGiwWQECTZMxVhJ5ZALxQ5nzRYkz4-E/view?usp=sharing'
@@ -23,7 +31,7 @@ Below is an example of a valid dataset layout. When using your own data, it shou
 
 ```
 dataset/
-├── gt/
+├── hr/
 │   ├── 0000001.png        # GT images, shape: (H, W, 3)
 │   └── ...
 ├── lr/
@@ -71,18 +79,8 @@ test_case,method,score_norm
 
 ## 🔑 License
 
-This dataset combines data from multiple third-party sources:
+This dataset combines data derived from multiple third-party sources.
 
-- Data and images from the other included third-party datasets (except Waterloo Exploration) are licensed under the MIT License. You may freely use, modify, and distribute them in accordance with the MIT License terms.
+* Content originating from the included third-party datasets follows the licensing terms of those original sources. In the current project setup, these components are treated as MIT-compatible for redistribution and research use where applicable.
 
-- Images from the Waterloo Exploration Database (University of Waterloo) are subject to the original restricted license: **non-commercial research and educational purposes only**. Commercial use is strictly prohibited. Full terms and conditions: https://kedema.org/project/exploration/index.html
-
-List of the images from the Waterloo Exploration Database:
-
-- pristine_images___00329
-- pristine_images___00530
-- pristine_images___01138
-- pristine_images___01409
-- pristine_images___03427
-- pristine_images___03736
-- pristine_images___04323
+If you plan to redistribute or use this dataset in downstream work, you should verify that your use complies with the licenses of all original data sources.
