@@ -435,6 +435,8 @@ def save_plot(fig: plt.Figure, out_path: Path, cfg: dict[str, Any]) -> None:
     if dpi is not None:
         savefig_kwargs["dpi"] = dpi
     fig.savefig(out_path, **savefig_kwargs)
+    if cfg.get("plot", {}).get("save_svg", False):
+        fig.savefig(out_path.with_suffix(".svg"), **savefig_kwargs)
 
 
 def init_models(cfg: dict[str, Any]) -> list[tuple[str, Any]]:
@@ -679,7 +681,8 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--config", default="configs/default.json", help="Path to experiment JSON config.")
     parser.add_argument("--experiment-name", default=None, help="Override config experiment_name.")
     parser.add_argument("--plots-root", default=None, help="Override config paths.plots_root.")
-    parser.add_argument("--no-plots", action="store_true", help="Skip PNG plot generation.")
+    parser.add_argument("--no-plots", action="store_true", help="Skip plot generation.")
+    parser.add_argument("--save-svg", action="store_true", help="Also save generated plots in SVG format.")
     return parser.parse_args(argv)
 
 
@@ -692,6 +695,8 @@ def main(argv: list[str] | None = None) -> None:
         overrides["experiment_name"] = args.experiment_name
     if args.plots_root is not None:
         overrides.setdefault("paths", {})["plots_root"] = args.plots_root
+    if args.save_svg:
+        overrides.setdefault("plot", {})["save_svg"] = True
     if overrides:
         cfg = deep_update(cfg, overrides)
 

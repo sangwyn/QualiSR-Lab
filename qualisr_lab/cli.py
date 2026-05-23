@@ -6,7 +6,6 @@ import importlib
 import sys
 from collections.abc import Sequence
 
-
 SCRIPT_COMMANDS = {
     "make-reference": "scripts.make_reference",
     "extract-features": "scripts.get_image_features",
@@ -41,7 +40,8 @@ def compute_stats_main() -> None:
 def _print_run_regressors_help() -> None:
     print(
         "usage: qualisr-run-regressors [-h] [--config CONFIG] "
-        "[--experiment-name EXPERIMENT_NAME] [--plots-root PLOTS_ROOT] [--no-plots]\n\n"
+        "[--experiment-name EXPERIMENT_NAME] [--plots-root PLOTS_ROOT] "
+        "[--no-plots] [--save-svg]\n\n"
         "Run configured QualiSR-Lab regressor experiments.\n\n"
         "options:\n"
         "  -h, --help            show this help message and exit\n"
@@ -50,7 +50,8 @@ def _print_run_regressors_help() -> None:
         "                        Override config experiment_name.\n"
         "  --plots-root PLOTS_ROOT\n"
         "                        Override config paths.plots_root.\n"
-        "  --no-plots            Skip PNG plot generation."
+        "  --no-plots            Skip plot generation.\n"
+        "  --save-svg            Also save generated plots in SVG format."
     )
 
 
