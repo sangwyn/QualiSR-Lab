@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from copy import deepcopy
 from functools import reduce
 from pathlib import Path
@@ -22,6 +23,15 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.inspection import permutation_importance
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.preprocessing import MinMaxScaler
+
+from qualisr_lab.profiling import (
+    build_regressor_profile_row,
+    build_regressor_total_profile,
+    is_regressor_profiling_enabled,
+    load_feature_profile_summary,
+    resolve_regressor_profile_path,
+    resolve_regressor_total_profile_path,
+)
 
 
 def deep_update(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
@@ -734,10 +744,32 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
     importance_paths: dict[str, str | None] = {}
     all_plcc: list[float] = []
     all_srcc: list[float] = []
+    profile_regressors = is_regressor_profiling_enabled(cfg)
+    profile_rows: list[dict[str, Any]] = []
 
     for model_name, model in init_models(cfg):
-        model.fit(X_train, y_train)
-        pred = model.predict(X_test)
+        if profile_regressors:
+            train_start = time.perf_counter()
+            model.fit(X_train, y_train)
+            train_runtime_sec = time.perf_counter() - train_start
+
+            predict_start = time.perf_counter()
+            pred = model.predict(X_test)
+            predict_runtime_sec = time.perf_counter() - predict_start
+            profile_rows.append(
+                build_regressor_profile_row(
+                    model_name=model_name,
+                    model=model,
+                    X_train=X_train,
+                    X_test=X_test,
+                    train_runtime_sec=train_runtime_sec,
+                    predict_runtime_sec=predict_runtime_sec,
+                )
+            )
+        else:
+            model.fit(X_train, y_train)
+            pred = model.predict(X_test)
+
         plcc, srcc = safe_corr(y_test, pred)
         all_plcc.append(plcc)
         all_srcc.append(srcc)
@@ -770,6 +802,26 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
 
     results_df = pd.DataFrame(results).sort_values("srcc", ascending=False).reset_index(drop=True)
     results_df.to_csv(out_dir / "correlations.csv", index=False)
+    regressor_profile_path = None
+    regressor_total_profile_path = None
+    feature_profile_summary_path = None
+    if profile_rows:
+        regressor_profile_path = resolve_regressor_profile_path(cfg, out_dir, run_name)
+        ensure_dir(regressor_profile_path.parent)
+        regressor_profile = pd.DataFrame(profile_rows)
+        regressor_profile.to_csv(regressor_profile_path, index=False)
+
+        feature_profile_summary = load_feature_profile_summary(cfg, X_train.columns)
+        if not feature_profile_summary.empty:
+            feature_profile_summary_path = out_dir / "regressor_feature_profile_summary.csv"
+            feature_profile_summary.to_csv(feature_profile_summary_path, index=False)
+
+            total_profile = build_regressor_total_profile(regressor_profile, feature_profile_summary)
+            if not total_profile.empty:
+                regressor_total_profile_path = resolve_regressor_total_profile_path(cfg, out_dir, run_name)
+                ensure_dir(regressor_total_profile_path.parent)
+                total_profile.to_csv(regressor_total_profile_path, index=False)
+
     feature_correlations = compute_feature_correlations(X_test, y_test)
     feature_correlations.to_csv(out_dir / "feature_correlations.csv", index=False)
 
@@ -808,6 +860,11 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
             str(correlations_without_metrics_path) if correlations_without_metrics_path else None
         ),
         "feature_correlations_path": str(feature_correlations_path) if feature_correlations_path else None,
+        "regressor_profile_path": str(regressor_profile_path) if regressor_profile_path else None,
+        "regressor_total_profile_path": (
+            str(regressor_total_profile_path) if regressor_total_profile_path else None
+        ),
+        "feature_profile_summary_path": str(feature_profile_summary_path) if feature_profile_summary_path else None,
     }
 
 
@@ -823,6 +880,36 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--plots-root", default=None, help="Override config paths.plots_root.")
     parser.add_argument("--no-plots", action="store_true", help="Skip plot generation.")
     parser.add_argument("--save-svg", action="store_true", help="Also save generated plots in SVG format.")
+    parser.add_argument(
+        "--profile",
+        action="store_true",
+        help="Measure regressor train/predict runtime and save regressor_profile.csv.",
+    )
+    parser.add_argument(
+        "--profile-output",
+        default=None,
+        help=(
+            "Output CSV path for regressor runtime/FLOPs profile. "
+            "Implies --profile. Default: <run_output>/regressor_profile.csv."
+        ),
+    )
+    parser.add_argument(
+        "--profile-total-output",
+        default=None,
+        help=(
+            "Output CSV path for feature+regressor runtime/FLOPs totals when feature profile data exists. "
+            "Default: <run_output>/regressor_total_profile.csv."
+        ),
+    )
+    parser.add_argument(
+        "--feature-profile-files",
+        nargs="+",
+        default=None,
+        help=(
+            "Existing feature profile CSV files to aggregate into regressor totals. "
+            "Can also be configured as profiling.feature_profile_files."
+        ),
+    )
     return parser.parse_args(argv)
 
 
@@ -837,6 +924,19 @@ def main(argv: list[str] | None = None) -> None:
         overrides.setdefault("paths", {})["plots_root"] = args.plots_root
     if args.save_svg:
         overrides.setdefault("plot", {})["save_svg"] = True
+    if (
+        args.profile
+        or args.profile_output is not None
+        or args.profile_total_output is not None
+        or args.feature_profile_files is not None
+    ):
+        overrides.setdefault("profiling", {})["regressors"] = True
+    if args.profile_output is not None:
+        overrides.setdefault("profiling", {})["regressor_output"] = args.profile_output
+    if args.profile_total_output is not None:
+        overrides.setdefault("profiling", {})["regressor_total_output"] = args.profile_total_output
+    if args.feature_profile_files is not None:
+        overrides.setdefault("profiling", {})["feature_profile_files"] = args.feature_profile_files
     if overrides:
         cfg = deep_update(cfg, overrides)
 

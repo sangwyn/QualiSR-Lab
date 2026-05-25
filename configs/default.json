@@ -8,6 +8,12 @@
     "save_mean_correlations": true,
     "save_best_correlations": false,
 
+    "profiling": {
+        "regressors": false,
+        "feature_profile_files": [],
+        "feature_profiles": {}
+    },
+
     "correlation_metrics": {
         "enabled": true,
         "items": [

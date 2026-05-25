@@ -176,6 +176,8 @@ Train regressors and produce summary on feature importances and correlations. Th
 qualisr-run-regressors --config configs/default.json
 ```
 
+Add `--profile` to save `regressor_profile.csv` with train/predict runtime and estimated prediction FLOPs for tree regressors. If feature profile CSVs are available, pass them with `--feature-profile-files` or configure `profiling.feature_profile_files`; the pipeline also saves `regressor_total_profile.csv` with summed feature + regressor runtime/FLOPs.
+
 You can also use `regressors.ipynb` notebook for experiments. It trains regressors, evaluates them, and visualizes:
 
 - feature importances,
