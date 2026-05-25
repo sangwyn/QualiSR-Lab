@@ -133,10 +133,15 @@ def resolve_feature_path(feat_name: str, cfg: dict[str, Any]) -> Path:
     if feat_name not in templates:
         raise KeyError(f"No path template configured for feature '{feat_name}'")
 
+    try:
+        pca_n = cfg["features"]["pca_n"]
+    except KeyError:
+        pca_n = 0
+
     return Path(
         templates[feat_name].format(
             features_root=cfg["paths"]["features_root"],
-            pca_n=cfg["features"]["pca_n"],
+            pca_n=pca_n,
         )
     )
 
@@ -208,7 +213,10 @@ def build_dataset(cfg: dict[str, Any]) -> pd.DataFrame:
 
     dataset = reduce(lambda left, right: pd.merge(left, right, on="name", how="inner"), frames)
 
-    existing_excludes = [c for c in cfg["features"]["exclude_columns"] if c in dataset.columns]
+    try:
+        existing_excludes = [c for c in cfg["features"]["exclude_columns"] if c in dataset.columns]
+    except KeyError:
+        existing_excludes = []
     if existing_excludes:
         dataset = dataset.drop(columns=existing_excludes)
 
@@ -583,13 +591,140 @@ def plot_correlations(
     return out_path
 
 
+def compute_feature_correlations(X_test: pd.DataFrame, y_test: pd.Series) -> pd.DataFrame:
+    target = pd.to_numeric(y_test.reset_index(drop=True), errors="coerce")
+    rows = []
+
+    for feature_name in X_test.columns:
+        values = pd.to_numeric(X_test[feature_name].reset_index(drop=True), errors="coerce")
+        valid = target.notna() & values.notna()
+        if valid.any():
+            plcc, srcc = safe_corr(target[valid], values[valid])
+        else:
+            plcc, srcc = np.nan, np.nan
+
+        rows.append(
+            {
+                "feature": feature_name,
+                "family": feature_family(feature_name),
+                "plcc": plcc,
+                "srcc": srcc,
+                "abs_plcc": abs(plcc) if not np.isnan(plcc) else np.nan,
+                "abs_srcc": abs(srcc) if not np.isnan(srcc) else np.nan,
+            }
+        )
+
+    mean_values = X_test.apply(pd.to_numeric, errors="coerce").mean(axis=1).reset_index(drop=True)
+    valid = target.notna() & mean_values.notna()
+    if valid.any():
+        plcc, srcc = safe_corr(target[valid], mean_values[valid])
+    else:
+        plcc, srcc = np.nan, np.nan
+    rows.append(
+        {
+            "feature": "mean_features",
+            "family": "Mean",
+            "plcc": plcc,
+            "srcc": srcc,
+            "abs_plcc": abs(plcc) if not np.isnan(plcc) else np.nan,
+            "abs_srcc": abs(srcc) if not np.isnan(srcc) else np.nan,
+        }
+    )
+
+    return pd.DataFrame(rows).sort_values("abs_srcc", ascending=False).reset_index(drop=True)
+
+
+def plot_feature_correlations(
+    feature_correlations: pd.DataFrame,
+    results_df: pd.DataFrame,
+    out_dir: Path,
+    cfg: dict[str, Any],
+) -> Path | None:
+    if feature_correlations.empty:
+        return None
+
+    feature_rows = feature_correlations.rename(columns={"feature": "name", "family": "group"}).copy()
+    feature_rows["kind"] = "feature"
+    feature_rows.loc[feature_rows["group"] == "Mean", "kind"] = "mean_features"
+
+    if "source" in results_df.columns:
+        regressor_results = results_df[results_df["source"] == "regressor"].copy()
+    else:
+        regressor_results = pd.DataFrame()
+
+    if not regressor_results.empty:
+        regressor_rows = regressor_results.rename(columns={"model": "name"}).copy()
+        regressor_rows["group"] = "Regressor"
+        regressor_rows["kind"] = "regressor"
+        plot_df = pd.concat(
+            [
+                feature_rows[["name", "group", "kind", "plcc", "srcc"]],
+                regressor_rows[["name", "group", "kind", "plcc", "srcc"]],
+            ],
+            ignore_index=True,
+        )
+    else:
+        plot_df = feature_rows[["name", "group", "kind", "plcc", "srcc"]]
+
+    plot_df["abs_srcc"] = plot_df["srcc"].abs()
+    plot_df = plot_df.sort_values(["kind", "abs_srcc"], ascending=[True, True]).reset_index(drop=True)
+
+    y = np.arange(len(plot_df))
+    bar_height = 0.36
+    is_regressor = plot_df["kind"] == "regressor"
+    is_mean_features = plot_df["kind"] == "mean_features"
+    plcc_colors = np.select(
+        [is_regressor, is_mean_features],
+        ["#ffb347", "#8ecae6"],
+        default="#b8c0cc",
+    )
+    srcc_colors = np.select(
+        [is_regressor, is_mean_features],
+        ["#e85d04", "#219ebc"],
+        default="#4d5a68",
+    )
+
+    default_height = max(6, 0.34 * len(plot_df))
+    figsize = tuple(cfg.get("plot", {}).get("feature_correlation_figsize", [12, default_height]))
+
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.barh(y - bar_height / 2, plot_df["plcc"], height=bar_height, color=plcc_colors)
+        ax.barh(y + bar_height / 2, plot_df["srcc"], height=bar_height, color=srcc_colors)
+        ax.set_yticks(y)
+        ax.set_yticklabels(plot_df["name"].tolist())
+        ax.set_xlim(-1, 1)
+        ax.axvline(0, color="#222222", linewidth=0.8)
+        ax.set_xlabel("Correlation")
+        ax.set_title("Feature, Mean Feature, and Regressor Correlations")
+
+        handles = [
+            mpatches.Patch(color="#b8c0cc", label="Feature PLCC"),
+            mpatches.Patch(color="#4d5a68", label="Feature SRCC"),
+            mpatches.Patch(color="#8ecae6", label="Mean Features PLCC"),
+            mpatches.Patch(color="#219ebc", label="Mean Features SRCC"),
+            mpatches.Patch(color="#ffb347", label="Regressor PLCC"),
+            mpatches.Patch(color="#e85d04", label="Regressor SRCC"),
+        ]
+        ax.legend(handles=handles, loc="lower right")
+        fig.tight_layout()
+
+    out_path = out_dir / "feature_correlations.png"
+    save_plot(fig, out_path, cfg)
+    plt.close(fig)
+    return out_path
+
+
 def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, Any]:
     np.random.seed(cfg["seed"])
 
     dataset = build_dataset(cfg)
     X_train, X_test, y_train, y_test = split_dataset(dataset, cfg)
 
-    run_name = f"{cfg['experiment_name']}@pca{cfg['features']['pca_n']}"
+    try:
+        run_name = f"{cfg['experiment_name']}@pca{cfg['features']['pca_n']}"
+    except KeyError:
+        run_name = f"{cfg['experiment_name']}"
     out_dir = ensure_dir(Path(cfg["paths"]["plots_root"]) / run_name)
 
     if cfg.get("save_dataset_snapshot", False):
@@ -635,13 +770,17 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
 
     results_df = pd.DataFrame(results).sort_values("srcc", ascending=False).reset_index(drop=True)
     results_df.to_csv(out_dir / "correlations.csv", index=False)
+    feature_correlations = compute_feature_correlations(X_test, y_test)
+    feature_correlations.to_csv(out_dir / "feature_correlations.csv", index=False)
 
     combined_importance_path = None
     correlations_path = None
     correlations_without_metrics_path = None
+    feature_correlations_path = None
     if make_plots:
         combined_importance_path = plot_all_importances(importance_paths, out_dir, cfg)
         correlations_path = plot_correlations(results_df, out_dir, cfg)
+        feature_correlations_path = plot_feature_correlations(feature_correlations, results_df, out_dir, cfg)
         if "source" in results_df.columns:
             without_metrics = results_df[results_df["source"] != "metric"].copy()
         else:
@@ -668,6 +807,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         "correlations_without_metrics_path": (
             str(correlations_without_metrics_path) if correlations_without_metrics_path else None
         ),
+        "feature_correlations_path": str(feature_correlations_path) if feature_correlations_path else None,
     }
 
 

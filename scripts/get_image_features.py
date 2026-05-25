@@ -31,6 +31,8 @@ NR_METRICS: Sequence[str] = (
 )
 
 NOISE_COMPONENTS = 5
+NOISE_SEED = 42
+
 DEFAULT_FEATURES: Sequence[str] = ("fr", "nr", "vgg", "resnet", "siglip", "gaussian", "uniform")
 IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
@@ -390,6 +392,12 @@ def parse_args() -> argparse.Namespace:
         default=NOISE_COMPONENTS,
         help="Number of noise features (if gaussian/uniform specified in feature list).",
     )
+    parser.add_argument(
+        "--noise-seed",
+        type=int,
+        default=NOISE_SEED,
+        help="Random seed for noise features (if gaussian/uniform specified in feature list).",
+    )
     parser.add_argument("--output", required=True, help="Output CSV file path.")
     parser.add_argument(
         "--device",
@@ -454,6 +462,9 @@ def main() -> None:
         if not lr_path.exists() or not lr_path.is_dir():
             raise FileNotFoundError(f"--lr-dir points to missing directory: {lr_path}")
         lr_index = DirectoryIndex(lr_path)
+
+    NOISE_COMPONENTS = args.noise_components
+    NOISE_SEED = args.noise_seed
 
     if "siglip" in requested_features and lr_index is None:
         raise ValueError("SigLIP requires --lr-dir")
@@ -641,6 +652,7 @@ def main() -> None:
 
     if "gaussian" in requested_features:
         try:
+            np.random.seed(NOISE_SEED)
             sample = np.random.normal(size=(len(rows), NOISE_COMPONENTS))
             sample = pd.DataFrame(sample, columns=[f"gaussian_{i}" for i in range(NOISE_COMPONENTS)])
             frame = pd.concat([frame, sample], axis=1)
@@ -649,6 +661,7 @@ def main() -> None:
 
     if "uniform" in requested_features:
         try:
+            np.random.seed(NOISE_SEED)
             sample = np.random.uniform(size=(len(rows), NOISE_COMPONENTS))
             sample = pd.DataFrame(sample, columns=[f"uniform_{i}" for i in range(NOISE_COMPONENTS)])
             frame = pd.concat([frame, sample], axis=1)
