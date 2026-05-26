@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from copy import deepcopy
 from functools import reduce
@@ -68,6 +69,36 @@ def safe_corr(y_true: Any, y_pred: Any) -> tuple[float, float]:
 def ensure_dir(path: Path) -> Path:
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def relativize_path_value(value: object) -> object:
+    if pd.isna(value):
+        return value
+
+    raw = str(value).strip()
+    if not raw:
+        return value
+
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        return raw
+
+    try:
+        return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def relativize_path_columns(df: pd.DataFrame) -> pd.DataFrame:
+    result = df.copy()
+    path_columns = [
+        column
+        for column in result.columns
+        if str(column) == "path" or str(column).endswith("_path") or str(column).endswith("_paths")
+    ]
+    for column in path_columns:
+        result[column] = result[column].map(relativize_path_value)
+    return result
 
 
 def prepare_scores_file(cfg: dict[str, Any]) -> pd.DataFrame:
@@ -435,6 +466,15 @@ def importance_legend_labels() -> dict[str, str]:
     }
 
 
+def model_display_name(model_name: str) -> str:
+    display_names = {
+        "randomforest": "Random Forest",
+        "xgb": "XGBoost",
+        "catboost": "CatBoost",
+    }
+    return display_names.get(model_name, model_name)
+
+
 def _missing_optional(package_name: str, extra_name: str) -> ImportError:
     return ImportError(
         f"Optional dependency '{package_name}' is required for this enabled model. "
@@ -596,6 +636,44 @@ def plot_correlations(
         fig.tight_layout()
 
     out_path = out_dir / filename
+    save_plot(fig, out_path, cfg)
+    plt.close(fig)
+    return out_path
+
+
+def plot_prediction_scatter(
+    predictions_by_model: dict[str, pd.DataFrame],
+    out_dir: Path,
+    cfg: dict[str, Any],
+) -> Path | None:
+    if not predictions_by_model:
+        return None
+
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, ax = plt.subplots(figsize=tuple(cfg.get("plot", {}).get("scatter_figsize", [8.5, 5.5])))
+        ax.plot([0, 1], [0, 1], color="#9aa3ad", linestyle="--", linewidth=1.2)
+
+        for model_name, predictions in predictions_by_model.items():
+            ax.scatter(
+                predictions["mos"],
+                predictions["prediction"],
+                s=cfg.get("plot", {}).get("scatter_point_size", 100),
+                alpha=0.78,
+                edgecolors="white",
+                linewidths=0.6,
+                label=model_display_name(model_name),
+            )
+
+        ax.set_xlabel("MOS")
+        ax.set_ylabel("Prediction")
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
+        ax.set_aspect("equal", adjustable="box")
+        ax.grid(alpha=0.22)
+        ax.legend(loc="lower right", frameon=True, framealpha=0.88, edgecolor="#d6dbe1")
+        fig.tight_layout()
+
+    out_path = out_dir / "mos_prediction_scatter_all_regressors.png"
     save_plot(fig, out_path, cfg)
     plt.close(fig)
     return out_path
@@ -845,7 +923,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
     out_dir = ensure_dir(Path(cfg["paths"]["plots_root"]) / run_name)
 
     if cfg.get("save_dataset_snapshot", False):
-        dataset.to_csv(out_dir / "dataset_snapshot.csv", index=False)
+        relativize_path_columns(dataset).to_csv(out_dir / "dataset_snapshot.csv", index=False)
 
     results = []
     importance_paths: dict[str, str | None] = {}
@@ -853,6 +931,8 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
     all_srcc: list[float] = []
     profile_regressors = is_regressor_profiling_enabled(cfg)
     profile_rows: list[dict[str, Any]] = []
+    predictions_by_model: dict[str, pd.DataFrame] = {}
+    prediction_names = dataset.loc[y_test.index, cfg["dataset"]["name_column"]].reset_index(drop=True)
 
     for model_name, model in init_models(cfg):
         if profile_regressors:
@@ -880,6 +960,13 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         plcc, srcc = safe_corr(y_test, pred)
         all_plcc.append(plcc)
         all_srcc.append(srcc)
+        predictions_by_model[model_name] = pd.DataFrame(
+            {
+                "name": prediction_names,
+                "mos": y_test.reset_index(drop=True),
+                "prediction": np.asarray(pred, dtype=float).reshape(-1),
+            }
+        )
 
         results.append({"model": model_name, "plcc": plcc, "srcc": srcc, "source": "regressor"})
         if make_plots:
@@ -909,6 +996,9 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
 
     results_df = pd.DataFrame(results).sort_values("srcc", ascending=False).reset_index(drop=True)
     results_df.to_csv(out_dir / "correlations.csv", index=False)
+    for model_name, predictions in predictions_by_model.items():
+        predictions.to_csv(out_dir / f"predictions_{model_name}.csv", index=False)
+
     regressor_profile_path = None
     regressor_total_profile_path = None
     feature_profile_summary_path = None
@@ -940,6 +1030,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
     correlations_without_metrics_path = None
     feature_correlations_path = None
     feature_cross_correlations_path = None
+    prediction_scatter_path = None
     if make_plots:
         combined_importance_path = plot_all_importances(importance_paths, out_dir, cfg)
         correlations_path = plot_correlations(results_df, out_dir, cfg)
@@ -949,6 +1040,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
             out_dir,
             cfg,
         )
+        prediction_scatter_path = plot_prediction_scatter(predictions_by_model, out_dir, cfg)
         if "source" in results_df.columns:
             without_metrics = results_df[results_df["source"] != "metric"].copy()
         else:
@@ -979,6 +1071,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         "feature_cross_correlations_path": (
             str(feature_cross_correlations_path) if feature_cross_correlations_path else None
         ),
+        "prediction_scatter_path": str(prediction_scatter_path) if prediction_scatter_path else None,
         "regressor_profile_path": str(regressor_profile_path) if regressor_profile_path else None,
         "regressor_total_profile_path": (
             str(regressor_total_profile_path) if regressor_total_profile_path else None

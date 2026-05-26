@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 import time
 from collections import defaultdict
 from collections.abc import Callable, Iterable, Sequence
@@ -40,6 +41,15 @@ IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp"}
 
 LOGGER = logging.getLogger("get_image_features")
 T = TypeVar("T")
+
+
+def csv_path(path: Path | None) -> str:
+    if path is None:
+        return ""
+    try:
+        return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 class FeatureProfiler:
@@ -653,18 +663,18 @@ def main() -> None:
                 "sample_id": f"{sr_method}:{sr_path.stem}",
                 "sr_method": sr_method,
                 "sr_filename": sr_path.name,
-                "sr_path": str(sr_path),
+                "sr_path": csv_path(sr_path),
             }
 
             gt_path: Path | None = None
             if gt_index is not None:
                 gt_path = gt_index.find_same_name(sr_path)
-                row["gt_path"] = str(gt_path) if gt_path is not None else ""
+                row["gt_path"] = csv_path(gt_path)
 
             lr_path: Path | None = None
             if lr_index is not None:
                 lr_path = lr_index.find_same_name(sr_path)
-                row["lr_path"] = str(lr_path) if lr_path is not None else ""
+                row["lr_path"] = csv_path(lr_path)
 
             if "nr" in requested_features and nr_models is not None:
                 for metric_name, model in nr_models.items():

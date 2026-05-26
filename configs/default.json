@@ -99,6 +99,8 @@
     "plot": {
         "importance_figsize": [6, 12],
         "correlation_figsize": [12, 5],
+        "scatter_figsize": [8.5, 5.5],
+        "scatter_point_size": 100,
         "feature_correlation_matrix_figsize": [10, 10],
         "max_feature_correlation_matrix_features": 300,
         "max_feature_correlation_matrix_labels": 45,

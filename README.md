@@ -183,6 +183,7 @@ You can also use `regressors.ipynb` notebook for experiments. It trains regresso
 - feature importances,
 - PLCC/SRCC correlations,
 - feature cross-correlation matrix,
+- MOS/prediction scatter plot,
 - comparisons across feature groups and model settings.
 
 The first notebook cell describes the workflow for running experiments individually or in batches.

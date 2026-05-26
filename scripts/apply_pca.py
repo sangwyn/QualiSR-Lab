@@ -1,5 +1,6 @@
 import argparse
 import logging
+import os
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -8,9 +9,9 @@ import pandas as pd
 from sklearn.decomposition import PCA
 from sklearn.model_selection import GroupShuffleSplit
 
-
 LOGGER = logging.getLogger("apply_pca_image_features")
 DEFAULT_BLOCKS: Sequence[str] = ("vgg=vgg_", "resnet=resnet_")
+PATH_COLUMNS: Sequence[str] = ("sr_path", "gt_path", "lr_path")
 
 
 def parse_args() -> argparse.Namespace:
@@ -197,6 +198,31 @@ def fallback_group_key_from_value(value: object) -> Optional[str]:
         return None
 
     return Path(normalized).stem
+
+
+def relativize_path_value(value: object) -> object:
+    if pd.isna(value):
+        return value
+
+    raw = str(value).strip()
+    if not raw:
+        return value
+
+    path = Path(raw).expanduser()
+    if not path.is_absolute():
+        return raw
+
+    try:
+        return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def relativize_path_columns(df: pd.DataFrame) -> pd.DataFrame:
+    for column in PATH_COLUMNS:
+        if column in df.columns:
+            df[column] = df[column].map(relativize_path_value)
+    return df
 
 
 def build_group_keys(
@@ -387,6 +413,7 @@ def main() -> None:
 
         filename = args.output_template.format(stem=input_path.stem, n=n)
         out_path = output_dir / filename
+        out_df = relativize_path_columns(out_df)
         out_df.to_csv(out_path, index=False)
         LOGGER.info("Saved PCA CSV (n=%d): %s", n, out_path)
 

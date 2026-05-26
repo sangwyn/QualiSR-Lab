@@ -2,11 +2,19 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import pandas as pd
+
+
+def csv_path(path: Path) -> str:
+    try:
+        return Path(os.path.relpath(path, start=Path.cwd())).as_posix()
+    except ValueError:
+        return path.as_posix()
 
 
 def is_regressor_profiling_enabled(cfg: dict[str, Any]) -> bool:
@@ -421,7 +429,7 @@ def load_feature_profile_summary(cfg: dict[str, Any], input_columns: pd.Index) -
 
                 rows.append(
                     {
-                        "profile_path": str(profile_path),
+                        "profile_path": csv_path(profile_path),
                         "profile_feature": profile_feature,
                         "matched_input_features": count_profiled_input_features(profile_feature, input_column_set),
                         "extractor_feature_count": _safe_float(row.get("feature_count")),
