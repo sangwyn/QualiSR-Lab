@@ -99,6 +99,10 @@
     "plot": {
         "importance_figsize": [6, 12],
         "correlation_figsize": [12, 5],
+        "feature_correlation_matrix_figsize": [10, 10],
+        "max_feature_correlation_matrix_features": 300,
+        "max_feature_correlation_matrix_labels": 45,
+        "feature_correlation_matrix_label_font_size": 8,
         "dpi": 300,
         "font_size": 16,
         "save_svg": false

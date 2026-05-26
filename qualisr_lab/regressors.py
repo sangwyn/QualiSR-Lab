@@ -725,6 +725,113 @@ def plot_feature_correlations(
     return out_path
 
 
+def feature_matrix_for_cross_correlation(X: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
+    numeric = X.apply(pd.to_numeric, errors="coerce").replace([np.inf, -np.inf], np.nan)
+    max_features = cfg.get("plot", {}).get("max_feature_correlation_matrix_features", 300)
+    if max_features is None or numeric.shape[1] <= int(max_features):
+        return numeric
+
+    variances = numeric.var(axis=0, skipna=True).sort_values(ascending=False)
+    selected = variances.head(int(max_features)).index.tolist()
+    return numeric[selected]
+
+
+def compute_feature_cross_correlations(X: pd.DataFrame, cfg: dict[str, Any]) -> pd.DataFrame:
+    matrix = feature_matrix_for_cross_correlation(X, cfg)
+    return matrix.corr(method="pearson")
+
+
+def plot_feature_cross_correlation_matrix(
+    cross_correlations: pd.DataFrame,
+    out_dir: Path,
+    cfg: dict[str, Any],
+) -> Path | None:
+    if cross_correlations.empty:
+        return None
+
+    n_features = len(cross_correlations)
+    default_size = min(max(7.0, 0.34 * n_features), 24.0)
+    figsize = tuple(cfg.get("plot", {}).get("feature_correlation_matrix_figsize", [default_size, default_size]))
+    label_limit = int(cfg.get("plot", {}).get("max_feature_correlation_matrix_labels", 45))
+    show_labels = n_features <= label_limit
+    label_font_size = cfg.get("plot", {}).get(
+        "feature_correlation_matrix_label_font_size",
+        min(10, plt.rcParams["font.size"]),
+    )
+
+    values = np.ma.masked_invalid(cross_correlations.to_numpy(dtype=float))
+    cmap = plt.get_cmap("coolwarm").copy()
+    cmap.set_bad("#eeeeee")
+
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, ax = plt.subplots(figsize=figsize)
+        image = ax.imshow(values, vmin=-1, vmax=1, cmap=cmap, interpolation="nearest")
+        # title = "Feature Cross-Correlation Matrix"
+        # if show_labels:
+        #     fig.suptitle(title, y=0.98)
+        # else:
+        #     ax.set_title(title)
+
+        if show_labels:
+            ticks = np.arange(n_features)
+            labels = cross_correlations.columns.tolist()
+            ax.set_xticks(ticks)
+            ax.set_yticks(ticks)
+            ax.set_xticklabels(labels, rotation=90, ha="center", va="top", fontsize=label_font_size)
+            ax.set_yticklabels(labels, fontsize=label_font_size)
+            ax.tick_params(
+                axis="x",
+                which="both",
+                top=True,
+                bottom=True,
+                labeltop=True,
+                labelbottom=True,
+                pad=2,
+            )
+            ax.tick_params(
+                axis="y",
+                which="both",
+                left=True,
+                right=True,
+                labelleft=True,
+                labelright=True,
+                pad=2,
+            )
+            for tick in ax.xaxis.get_major_ticks():
+                tick.label1.set_rotation(90)
+                tick.label1.set_ha("center")
+                tick.label1.set_va("top")
+                tick.label1.set_fontsize(label_font_size)
+                tick.label2.set_rotation(90)
+                tick.label2.set_ha("center")
+                tick.label2.set_va("bottom")
+                tick.label2.set_fontsize(label_font_size)
+            for tick in ax.yaxis.get_major_ticks():
+                tick.label1.set_ha("right")
+                tick.label2.set_ha("left")
+                tick.label1.set_fontsize(label_font_size)
+                tick.label2.set_fontsize(label_font_size)
+        else:
+            ax.set_xticks([])
+            ax.set_yticks([])
+            ax.set_xlabel(f"{n_features} features")
+            ax.set_ylabel(f"{n_features} features")
+
+        if show_labels:
+            fig.subplots_adjust(left=0.18, right=0.70, bottom=0.22, top=0.74)
+            cbar_ax = fig.add_axes([0.88, 0.22, 0.025, 0.52])
+            cbar = fig.colorbar(image, cax=cbar_ax)
+        else:
+            cbar = fig.colorbar(image, ax=ax, fraction=0.046, pad=0.04)
+            fig.tight_layout()
+        cbar.set_label("Pearson correlation")
+
+    out_path = out_dir / "feature_cross_correlation_matrix.png"
+    save_plot(fig, out_path, cfg)
+    plt.close(fig)
+    return out_path
+
+
 def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, Any]:
     np.random.seed(cfg["seed"])
 
@@ -824,15 +931,24 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
 
     feature_correlations = compute_feature_correlations(X_test, y_test)
     feature_correlations.to_csv(out_dir / "feature_correlations.csv", index=False)
+    X_all = pd.concat([X_train, X_test], axis=0).sort_index()
+    feature_cross_correlations = compute_feature_cross_correlations(X_all, cfg)
+    feature_cross_correlations.to_csv(out_dir / "feature_cross_correlations.csv")
 
     combined_importance_path = None
     correlations_path = None
     correlations_without_metrics_path = None
     feature_correlations_path = None
+    feature_cross_correlations_path = None
     if make_plots:
         combined_importance_path = plot_all_importances(importance_paths, out_dir, cfg)
         correlations_path = plot_correlations(results_df, out_dir, cfg)
         feature_correlations_path = plot_feature_correlations(feature_correlations, results_df, out_dir, cfg)
+        feature_cross_correlations_path = plot_feature_cross_correlation_matrix(
+            feature_cross_correlations,
+            out_dir,
+            cfg,
+        )
         if "source" in results_df.columns:
             without_metrics = results_df[results_df["source"] != "metric"].copy()
         else:
@@ -860,6 +976,9 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
             str(correlations_without_metrics_path) if correlations_without_metrics_path else None
         ),
         "feature_correlations_path": str(feature_correlations_path) if feature_correlations_path else None,
+        "feature_cross_correlations_path": (
+            str(feature_cross_correlations_path) if feature_cross_correlations_path else None
+        ),
         "regressor_profile_path": str(regressor_profile_path) if regressor_profile_path else None,
         "regressor_total_profile_path": (
             str(regressor_total_profile_path) if regressor_total_profile_path else None

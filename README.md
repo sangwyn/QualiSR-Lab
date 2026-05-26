@@ -159,7 +159,7 @@ Input directories can be passed as `PREFIX=DIR` to ensure stable sample naming.
 ```bash
 qualisr-compute-stats \
   --heatmap-dirs PASD=dataset/heatmaps/PASD SUPIR=dataset/heatmaps/SUPIR RealESRGAN=dataset/heatmaps/RealESRGAN \
-  --output features/stats@grounding.csv \
+  --output features/stats.csv \
   --percentiles 5 95 \
   --area-thresholds 0 0.5 0.75
 ```
@@ -182,6 +182,7 @@ You can also use `regressors.ipynb` notebook for experiments. It trains regresso
 
 - feature importances,
 - PLCC/SRCC correlations,
+- feature cross-correlation matrix,
 - comparisons across feature groups and model settings.
 
 The first notebook cell describes the workflow for running experiments individually or in batches.
