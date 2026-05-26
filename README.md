@@ -89,6 +89,29 @@ See [dataset/readme.md](dataset/readme.md) for dataset download notes.
 
 ---
 
+## ♻️ Full Reproducibility Run
+
+To download the dataset and run feature extraction, PCA, artifact statistics, and regressor analysis end to end:
+
+```bash
+python -m pip install -e ".[features,regressors]"
+bash scripts/reproduce_pipeline.sh
+```
+
+Useful overrides:
+
+```bash
+DEVICE=cuda SAVE_SVG=1 bash scripts/reproduce_pipeline.sh
+PROFILE=1 PROFILE_FLOPS=1 bash scripts/reproduce_pipeline.sh
+DATASET_SOURCE=gdrive bash scripts/reproduce_pipeline.sh
+DATASET_SOURCE=archive DATASET_ARCHIVE=/path/to/grounding_dataset.zip bash scripts/reproduce_pipeline.sh
+DATASET_SOURCE=skip DATASET_DIR=dataset bash scripts/reproduce_pipeline.sh
+```
+
+The script writes feature-group CSVs such as `features/fr.csv`, `features/nr.csv`, and `features/vgg.csv`, PCA outputs to `features/pca/`, prepared scores to `scores/`, and plots/results to `plots/`.
+
+---
+
 ## 🚀 Workflow
 
 ### Step 0 (optional): Prepare reference images

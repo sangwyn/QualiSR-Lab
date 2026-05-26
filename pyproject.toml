@@ -41,6 +41,7 @@ regressors = [
   "xgboost>=2.0",
 ]
 features = [
+  "huggingface-hub[cli]>=0.23",
   "pyiqa>=0.1.15",
   "torch>=2.2",
   "torchvision>=0.17",
