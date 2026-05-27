@@ -242,7 +242,7 @@ These metrics are computed through the [PyIQA](https://github.com/chaofengc/IQA-
 
 FR metrics are not always ideal for SR-IQA because they assume access to a perfect reference image. Still, they provide useful information about fidelity.
 
-When true GT images are unavailable, the project uses **quasi-GT** references: images obtained by upscaling the LR input with methods that are faithful to the LR image and do not introduce strong hallucinated content.
+When true GT images are unavailable, the project uses **pseudo-GT** references: images obtained by upscaling the LR input with methods that are faithful to the LR image and do not introduce strong hallucinated content.
 
 Reference upscaling methods used here:
 

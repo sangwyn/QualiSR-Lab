@@ -70,7 +70,7 @@ QualiSR-Lab is designed to be easy to extend with new feature groups.
     Xiaohua Zhai, Basil Mustafa, Alexander Kolesnikov, Lucas Beyer. 2023.  
     arXiv: https://arxiv.org/abs/2303.15343
 
-### Reference / quasi-GT upscaling methods
+### Reference / pseudo-GT upscaling methods
 
 14. **Swift Parameter-free Attention Network for Efficient Super-Resolution**  
     Cheng Wan, Hongyuan Yu, Zhiqi Li, Yihang Chen, Yajun Zou, Yuqing Liu, Xuanwu Yin, Kunlong Zuo. 2023.  
