@@ -38,6 +38,7 @@ dependencies = [
 [project.optional-dependencies]
 regressors = [
   "catboost>=1.2",
+  "shap>=0.45",
   "xgboost>=2.0",
 ]
 features = [

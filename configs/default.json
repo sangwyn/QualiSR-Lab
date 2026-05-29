@@ -96,8 +96,27 @@
         "catboost": {"enabled": true, "params": {}}
     },
 
+    "pretty_names": {
+        "features": {},
+        "models": {},
+        "metrics": {},
+        "references": {},
+        "families": {}
+    },
+
     "plot": {
+        "enabled": {
+            "importance": true,
+            "all_importances": true,
+            "shap": true,
+            "correlations": true,
+            "correlations_without_metrics": true,
+            "feature_correlations": true,
+            "feature_cross_correlation_matrix": true,
+            "prediction_scatter": true
+        },
         "importance_figsize": [6, 12],
+        "shap_figsize": [8, 12],
         "correlation_figsize": [12, 5],
         "scatter_figsize": [8.5, 5.5],
         "scatter_point_size": 100,

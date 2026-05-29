@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import time
+import warnings
 from copy import deepcopy
 from functools import reduce
 from pathlib import Path
@@ -36,46 +38,109 @@ from qualisr_lab.profiling import (
 
 
 PRETTY_FEATURE_NAMES = {
-    'catboost': 'Catboost',
-    'randomforest': 'Random Forest',
-    'xgb': 'XGBoost',
-    'mean_features': 'Mean Features',
-    'median_features': 'Median Features',
-
-    'musiq': 'MUSIQ',
-    'unique': 'UNIQUE',
-    'arniqa': 'ARNIQA',
-    'qalign': 'Q-Align',
-    'paq2piq': 'PaQ-2-PiQ',
-
-    'stlpips-vgg': 'STLPIPS-VGG',
-    'lpips-vgg': 'LPIPS-VGG',
-    'psnr': 'PSNR',
-    'ssim': 'SSIM',
-    'pieapp': 'PieAPP',
-    'ahiq': 'AHIQ',
-
-    'rlfn': 'RLFN',
-    'span': 'SPAN',
-    'bicubic': 'Bicubic',
-    'gt': 'GT'
+    "catboost": "CatBoost",
+    "randomforest": "Random Forest",
+    "xgb": "XGBoost",
+    "best": "Best",
+    "mean_features": "Mean Features",
+    "median_features": "Median Features",
+    "vgg": "VGG",
+    "resnet": "ResNet",
+    "siglip": "SigLIP",
+    "nr": "NR",
+    "fr": "FR",
+    "musiq": "MUSIQ",
+    "unique": "UNIQUE",
+    "arniqa": "ARNIQA",
+    "qalign": "Q-Align",
+    "paq2piq": "PaQ-2-PiQ",
+    "stlpips-vgg": "STLPIPS-VGG",
+    "lpips-vgg": "LPIPS-VGG",
+    "psnr": "PSNR",
+    "ssim": "SSIM",
+    "pieapp": "PieAPP",
+    "ahiq": "AHIQ",
+    "rlfn": "RLFN",
+    "span": "SPAN",
+    "bicubic": "Bicubic",
+    "gt": "GT",
+    "content_fidelity": "Content Fidelity",
+    "perceptual_enhancement": "Perceptual Enhancement",
+    "final_rr_score": "Final RR Score",
+    "min": "Min",
+    "max": "Max",
+    "mean": "Mean",
+    "median": "Median",
+    "std": "Std",
+    "p05": "P05",
+    "p95": "P95",
+    "area00": "Area 0.00",
+    "area05": "Area 0.05",
+    "area075": "Area 0.75",
 }
 
-def get_pretty_feature(name):
-    if name in PRETTY_FEATURE_NAMES:
-        return PRETTY_FEATURE_NAMES[name]
-    
-    for ref in ['rlfn', 'span', 'bicubic', 'gt']:
-        if ref in name:
-            prefix = PRETTY_FEATURE_NAMES.get(name.split("_")[0], name.split("_")[0])
-            return f'{prefix} + {PRETTY_FEATURE_NAMES[ref]}'
+PCA_FEATURE_RE = re.compile(r"^(?P<family>vgg|resnet)(?:_pca)?[_-]?(?P<component>\d+)$", re.IGNORECASE)
 
-    if 'resnet' in name:
-        return f'ResNet PC{int(name.split("_")[-1])}'
-    if 'vgg' in name:
-        return f'VGG PC{int(name.split("_")[-1])}'
 
-    return name
+def configured_pretty_names(cfg: dict[str, Any] | None = None) -> dict[str, str]:
+    names = {str(key): str(value) for key, value in PRETTY_FEATURE_NAMES.items()}
+    if not cfg:
+        return names
+
+    pretty_cfg = cfg.get("pretty_names", {})
+    if not isinstance(pretty_cfg, dict):
+        return names
+
+    for section in ["features", "models", "metrics", "references", "names"]:
+        section_names = pretty_cfg.get(section, {})
+        if isinstance(section_names, dict):
+            names.update({str(key): str(value) for key, value in section_names.items()})
+
+    flat_names = {
+        str(key): str(value)
+        for key, value in pretty_cfg.items()
+        if isinstance(value, str)
+    }
+    names.update(flat_names)
+    return names
+
+
+def lookup_pretty_name(name: str, cfg: dict[str, Any] | None = None) -> str | None:
+    names = configured_pretty_names(cfg)
+    if name in names:
+        return names[name]
+
+    lower_names = {key.lower(): value for key, value in names.items()}
+    return lower_names.get(name.lower())
+
+
+def get_pretty_feature(name: Any, cfg: dict[str, Any] | None = None) -> str:
+    raw = str(name)
+    configured_name = lookup_pretty_name(raw, cfg)
+    if configured_name is not None:
+        return configured_name
+
+    lower = raw.lower()
+    for ref in ["bicubic", "rlfn", "span", "gt"]:
+        suffix = f"_{ref}"
+        if lower.endswith(suffix):
+            prefix = raw[: -len(suffix)]
+            prefix_pretty = lookup_pretty_name(prefix, cfg) or prefix
+            ref_pretty = lookup_pretty_name(ref, cfg) or ref.upper()
+            return f"{prefix_pretty} + {ref_pretty}"
+
+    match = PCA_FEATURE_RE.match(lower)
+    if match:
+        family = match.group("family")
+        family_pretty = lookup_pretty_name(family, cfg) or {"vgg": "VGG", "resnet": "ResNet"}[family]
+        component = int(match.group("component"))
+        return f"{family_pretty} PC{component}"
+
+    return raw
+
+
+def get_pretty_labels(names: Any, cfg: dict[str, Any] | None = None) -> list[str]:
+    return [get_pretty_feature(name, cfg) for name in names]
 
 
 def deep_update(base: dict[str, Any], updates: dict[str, Any]) -> dict[str, Any]:
@@ -321,15 +386,15 @@ def metric_comparison_column(item: dict[str, Any]) -> str:
     return str(metric)
 
 
-def metric_comparison_label(item: dict[str, Any], column: str) -> str:
+def metric_comparison_label(item: dict[str, Any], column: str, cfg: dict[str, Any]) -> str:
     if "label" in item:
         return str(item["label"])
 
-    feature = str(item.get("feature", "")).upper()
+    feature = get_pretty_feature(item.get("feature", ""), cfg).upper()
     reference = item.get("reference")
-    metric = str(item.get("metric", column)).upper()
+    metric = get_pretty_feature(item.get("metric", column), cfg)
     if reference:
-        metric = f"{metric}+{str(reference).upper()}"
+        metric = f"{metric}+{get_pretty_feature(reference, cfg)}"
     if feature:
         return f"{metric} ({feature})"
     return metric
@@ -366,7 +431,7 @@ def load_metric_comparison_values(
         raise ValueError(f"Correlation metric file {path} has duplicate sample names: {duplicates[:10]}")
 
     aligned = target_names.to_frame(name="name").merge(subset, on="name", how="left")[column]
-    label = metric_comparison_label(item, column)
+    label = metric_comparison_label(item, column, cfg)
     return label, column, aligned
 
 
@@ -497,8 +562,8 @@ def importance_palette() -> dict[str, str]:
     }
 
 
-def importance_legend_labels() -> dict[str, str]:
-    return {
+def importance_legend_labels(cfg: dict[str, Any] | None = None) -> dict[str, str]:
+    labels = {
         "NR": "NR metrics",
         "FR": "FR metrics",
         "VGG": "VGG features",
@@ -507,15 +572,15 @@ def importance_legend_labels() -> dict[str, str]:
         "Stats": "Artifact statistics",
         "Other": "Other",
     }
+    pretty_cfg = cfg.get("pretty_names", {}) if cfg else {}
+    family_names = pretty_cfg.get("families", {}) if isinstance(pretty_cfg, dict) else {}
+    if isinstance(family_names, dict):
+        labels.update({str(key): str(value) for key, value in family_names.items()})
+    return labels
 
 
-def model_display_name(model_name: str) -> str:
-    display_names = {
-        "randomforest": "Random Forest",
-        "xgb": "XGBoost",
-        "catboost": "CatBoost",
-    }
-    return display_names.get(model_name, model_name)
+def model_display_name(model_name: str, cfg: dict[str, Any] | None = None) -> str:
+    return get_pretty_feature(model_name, cfg)
 
 
 def _missing_optional(package_name: str, extra_name: str) -> ImportError:
@@ -528,6 +593,15 @@ def _missing_optional(package_name: str, extra_name: str) -> ImportError:
 def plot_rc_params(cfg: dict[str, Any]) -> dict[str, Any]:
     font_size = cfg.get("plot", {}).get("font_size")
     return {"font.size": font_size} if font_size is not None else {}
+
+
+def plot_enabled(cfg: dict[str, Any], name: str) -> bool:
+    enabled = cfg.get("plot", {}).get("enabled", {})
+    if isinstance(enabled, bool):
+        return enabled
+    if isinstance(enabled, dict):
+        return bool(enabled.get(name, True))
+    return True
 
 
 def save_plot(fig: plt.Figure, out_path: Path, cfg: dict[str, Any]) -> None:
@@ -596,18 +670,121 @@ def plot_importance(
         random_state=cfg["seed"],
         n_jobs=2,
     )
+    perm_std = pd.Series(perm.importances_std, index=X_test.columns).reindex(importances.index)
 
     palette = importance_palette()
     colors = [palette[feature_family(name)] for name in importances.index]
+    display_importances = importances.copy()
+    display_importances.index = get_pretty_labels(importances.index, cfg)
 
     with plt.rc_context(plot_rc_params(cfg)):
         fig, ax = plt.subplots(figsize=tuple(cfg["plot"]["importance_figsize"]))
-        importances.plot.barh(yerr=perm.importances_std, ax=ax, color=colors)
-        ax.set_title(f"Feature Importances: {model_name}")
+        display_importances.plot.barh(yerr=perm_std.to_numpy(), ax=ax, color=colors)
+        ax.set_title(f"Feature Importances: {model_display_name(model_name, cfg)}")
         ax.set_xlabel("Importance")
         fig.tight_layout()
 
     out_path = out_dir / f"importance_{model_name}.png"
+    save_plot(fig, out_path, cfg)
+    plt.close(fig)
+    return out_path
+
+
+def _normalize_shap_values(shap_values: Any, X_test: pd.DataFrame) -> np.ndarray:
+    if hasattr(shap_values, "values"):
+        shap_values = shap_values.values
+
+    if isinstance(shap_values, list):
+        if len(shap_values) == 1:
+            shap_values = shap_values[0]
+        else:
+            shap_values = np.mean(np.asarray(shap_values, dtype=float), axis=0)
+
+    shap_arr = np.asarray(shap_values, dtype=float)
+    n_samples, n_features = X_test.shape
+
+    if shap_arr.ndim == 3:
+        if shap_arr.shape[:2] == (n_samples, n_features):
+            shap_arr = shap_arr[:, :, 0] if shap_arr.shape[2] == 1 else np.mean(shap_arr, axis=2)
+        elif shap_arr.shape[1:] == (n_samples, n_features):
+            shap_arr = shap_arr[0] if shap_arr.shape[0] == 1 else np.mean(shap_arr, axis=0)
+
+    if shap_arr.ndim != 2 or shap_arr.shape != (n_samples, n_features):
+        raise ValueError(
+            "Unexpected SHAP values shape: "
+            f"{shap_arr.shape}; expected {(n_samples, n_features)} for {n_samples} samples "
+            f"and {n_features} features"
+        )
+
+    return shap_arr
+
+
+def plot_shap_importance(
+    model_name: str,
+    model: Any,
+    X_test: pd.DataFrame,
+    out_dir: Path,
+    cfg: dict[str, Any],
+) -> Path | None:
+    try:
+        import shap
+    except ImportError:
+        warnings.warn(
+            "Optional dependency 'shap' is required for SHAP plots. "
+            "Install it with `pip install -e .[regressors]` or set "
+            "`plot.enabled.shap` to false in the config.",
+            stacklevel=2,
+        )
+        return None
+
+    explainer = shap.TreeExplainer(model)
+    shap_arr = _normalize_shap_values(explainer.shap_values(X_test), X_test)
+
+    shap_values_path = out_dir / f"shap_values_{model_name}.csv"
+    pd.DataFrame(shap_arr, columns=X_test.columns).to_csv(shap_values_path, index=False)
+
+    mean_abs = pd.Series(np.abs(shap_arr).mean(axis=0), index=X_test.columns).sort_values(ascending=False)
+    mean_abs_df = pd.DataFrame(
+        {
+            "feature": mean_abs.index,
+            "pretty_feature": get_pretty_labels(mean_abs.index, cfg),
+            "family": [feature_family(name) for name in mean_abs.index],
+            "mean_abs_shap": mean_abs.values,
+        }
+    )
+    mean_abs_df.to_csv(out_dir / f"shap_mean_abs_{model_name}.csv", index=False)
+
+    plot_values = mean_abs.sort_values(ascending=True)
+    palette = importance_palette()
+    colors = [palette[feature_family(name)] for name in plot_values.index]
+    pretty_labels = get_pretty_labels(plot_values.index, cfg)
+    max_value = float(plot_values.max()) if len(plot_values) else 0.0
+    default_height = max(5.0, 0.45 * len(plot_values))
+    figsize = tuple(cfg.get("plot", {}).get("shap_figsize", [8, default_height]))
+
+    with plt.rc_context(plot_rc_params(cfg)):
+        fig, ax = plt.subplots(figsize=figsize)
+        ax.barh(range(len(plot_values)), plot_values.values, color=colors, height=0.65)
+        ax.set_yticks(range(len(plot_values)))
+        ax.set_yticklabels(pretty_labels)
+        ax.set_xlabel("Mean |SHAP value|")
+        ax.set_title(f"SHAP Feature Importance: {model_display_name(model_name, cfg)}")
+        if max_value > 0:
+            ax.set_xlim(0, max_value * 1.15)
+        ax.spines[["top", "right"]].set_visible(False)
+
+        present = {feature_family(name) for name in plot_values.index}
+        labels = importance_legend_labels(cfg)
+        handles = [
+            mpatches.Patch(color=palette[key], label=labels[key])
+            for key in labels
+            if key in present
+        ]
+        if handles:
+            ax.legend(handles=handles, loc="lower right")
+        fig.tight_layout()
+
+    out_path = out_dir / f"shap_importance_{model_name}.png"
     save_plot(fig, out_path, cfg)
     plt.close(fig)
     return out_path
@@ -642,7 +819,7 @@ def plot_all_importances(
             ax.axis("off")
 
         palette = importance_palette()
-        labels = importance_legend_labels()
+        labels = importance_legend_labels(cfg)
         handles = [mpatches.Patch(color=palette[key], label=labels[key]) for key in labels]
 
         fig.legend(handles=handles, loc="center right", bbox_to_anchor=(0.995, 0.5))
@@ -671,8 +848,8 @@ def plot_correlations(
         ax.bar(x - bar_width / 2, df["plcc"], width=bar_width, label="PLCC", color="#845ec2")
         ax.bar(x + bar_width / 2, df["srcc"], width=bar_width, label="SRCC", color="#00c9a7")
         ax.set_xticks(x)
-        ax.set_xticklabels(df["model"].tolist(), rotation=30, ha="right")
-        ax.set_ylim(0, 1)
+        ax.set_xticklabels(get_pretty_labels(df["model"], cfg), rotation=30, ha="right")
+        ax.set_ylim(-1, 1)
         ax.set_ylabel("Correlation")
         ax.set_title(title)
         ax.legend(loc="upper right")
@@ -704,7 +881,7 @@ def plot_prediction_scatter(
                 alpha=0.78,
                 edgecolors="white",
                 linewidths=0.6,
-                label=model_display_name(model_name),
+                label=model_display_name(model_name, cfg),
             )
 
         ax.set_xlabel("MOS")
@@ -820,7 +997,7 @@ def plot_feature_correlations(
     plot_df = plot_df.sort_values(["kind", "srcc"], ascending=[True, True]).reset_index(drop=True)
 
     # plot_df = plot_df[plot_df["srcc"] > 0]
-    plot_df["name"] = plot_df["name"].map(get_pretty_feature).fillna(plot_df["name"])
+    plot_df["name"] = get_pretty_labels(plot_df["name"], cfg)
 
     y = np.arange(len(plot_df))
     bar_height = 0.36
@@ -916,7 +1093,7 @@ def plot_feature_cross_correlation_matrix(
 
         if show_labels:
             ticks = np.arange(n_features)
-            labels = cross_correlations.columns.tolist()
+            labels = get_pretty_labels(cross_correlations.columns, cfg)
             ax.set_xticks(ticks)
             ax.set_yticks(ticks)
             ax.set_xticklabels(labels, rotation=90, ha="center", va="top", fontsize=label_font_size)
@@ -991,6 +1168,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
 
     results = []
     importance_paths: dict[str, str | None] = {}
+    shap_paths: dict[str, str | None] = {}
     all_plcc: list[float] = []
     all_srcc: list[float] = []
     profile_regressors = is_regressor_profiling_enabled(cfg)
@@ -1033,9 +1211,12 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         )
 
         results.append({"model": model_name, "plcc": plcc, "srcc": srcc, "source": "regressor"})
-        if make_plots:
+        if make_plots and plot_enabled(cfg, "importance"):
             imp_path = plot_importance(model_name, model, X_test, y_test, out_dir, cfg)
             importance_paths[model_name] = str(imp_path) if imp_path else None
+        if make_plots and plot_enabled(cfg, "shap"):
+            shap_path = plot_shap_importance(model_name, model, X_test, out_dir, cfg)
+            shap_paths[model_name] = str(shap_path) if shap_path else None
 
     results.extend(compute_metric_comparisons(cfg, dataset, y_test))
 
@@ -1096,20 +1277,25 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
     feature_cross_correlations_path = None
     prediction_scatter_path = None
     if make_plots:
-        combined_importance_path = plot_all_importances(importance_paths, out_dir, cfg)
-        correlations_path = plot_correlations(results_df, out_dir, cfg)
-        feature_correlations_path = plot_feature_correlations(feature_correlations, results_df, out_dir, cfg)
-        feature_cross_correlations_path = plot_feature_cross_correlation_matrix(
-            feature_cross_correlations,
-            out_dir,
-            cfg,
-        )
-        prediction_scatter_path = plot_prediction_scatter(predictions_by_model, out_dir, cfg)
+        if plot_enabled(cfg, "all_importances"):
+            combined_importance_path = plot_all_importances(importance_paths, out_dir, cfg)
+        if plot_enabled(cfg, "correlations"):
+            correlations_path = plot_correlations(results_df, out_dir, cfg)
+        if plot_enabled(cfg, "feature_correlations"):
+            feature_correlations_path = plot_feature_correlations(feature_correlations, results_df, out_dir, cfg)
+        if plot_enabled(cfg, "feature_cross_correlation_matrix"):
+            feature_cross_correlations_path = plot_feature_cross_correlation_matrix(
+                feature_cross_correlations,
+                out_dir,
+                cfg,
+            )
+        if plot_enabled(cfg, "prediction_scatter"):
+            prediction_scatter_path = plot_prediction_scatter(predictions_by_model, out_dir, cfg)
         if "source" in results_df.columns:
             without_metrics = results_df[results_df["source"] != "metric"].copy()
         else:
             without_metrics = results_df.copy()
-        if not without_metrics.empty:
+        if plot_enabled(cfg, "correlations_without_metrics") and not without_metrics.empty:
             correlations_without_metrics_path = plot_correlations(
                 without_metrics,
                 out_dir,
@@ -1126,6 +1312,7 @@ def run_experiment(cfg: dict[str, Any], make_plots: bool = True) -> dict[str, An
         "results": results_df,
         "output_dir": out_dir,
         "importance_paths": importance_paths,
+        "shap_paths": shap_paths,
         "all_importances_path": str(combined_importance_path) if combined_importance_path else None,
         "correlations_path": str(correlations_path) if correlations_path else None,
         "correlations_without_metrics_path": (
